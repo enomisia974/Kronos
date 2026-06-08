@@ -16,7 +16,7 @@ FTSE_MIB = (
     "BC.MI","CPR.MI","DIA.MI","ENEL.MI","ENI.MI","ERG.MI","FBK.MI","G.MI",
     "HER.MI","IG.MI","IP.MI","ISP.MI","IVG.MI","LDO.MI","MB.MI","MONC.MI",
     "NEXI.MI","PIRC.MI","PST.MI","PRY.MI","RACE.MI","REC.MI","SPM.MI","SRG.MI",
-    "STLAM.MI","STM.MI","TEN.MI","TIT.MI","TRN.MI","UCG.MI","UNI.MI","US.MI",
+    "STLAM.MI","TEN.MI","TIT.MI","TRN.MI","UCG.MI","UNI.MI",
 )
 
 ASSET_NAMES = {
@@ -28,8 +28,8 @@ ASSET_NAMES = {
     "IVG.MI":"Iveco","LDO.MI":"Leonardo","MB.MI":"Mediobanca","MONC.MI":"Moncler",
     "NEXI.MI":"Nexi","PIRC.MI":"Pirelli","PST.MI":"Poste It.","PRY.MI":"Prysmian",
     "RACE.MI":"Ferrari","REC.MI":"Recordati","SPM.MI":"Saipem","SRG.MI":"Snam",
-    "STLAM.MI":"Stellantis","STM.MI":"STMicro","TEN.MI":"Tenaris","TIT.MI":"Tim",
-    "TRN.MI":"Terna","UCG.MI":"UniCredit","UNI.MI":"Unipol","US.MI":"UnipolSai",
+    "STLAM.MI":"Stellantis","TEN.MI":"Tenaris","TIT.MI":"Tim",
+    "TRN.MI":"Terna","UCG.MI":"UniCredit","UNI.MI":"Unipol",
 }
 
 def calcola_rsi(series, period=14):
@@ -105,13 +105,13 @@ def analizza_ticker(ticker, df=None):
     resistenza = df['high'].iloc[-60:-1].max() if len(df) >= 60 else df['high'].max()
     dist_res = (p - resistenza) / resistenza * 100
 
-    returns_20d = df['close'].pct_change().tail(20).dropna()
+    returns_20d = df['close'].pct_change(fill_method=None).tail(20).dropna()
     varianza_20d = returns_20d.var()
     media_close_20d = df['close'].tail(20).mean()
     vcp = varianza_20d < (media_close_20d * 0.0008)
 
     ch30 = ((p - df['close'].iloc[-30]) / df['close'].iloc[-30]) * 100 if len(df) >= 30 else 0
-    vola = df['close'].pct_change().rolling(20).std().iloc[-1] * np.sqrt(252) * 100
+    vola = df['close'].pct_change(fill_method=None).rolling(20).std().iloc[-1] * np.sqrt(252) * 100
 
     score = 0
     filters = []
