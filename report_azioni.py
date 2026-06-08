@@ -20,6 +20,13 @@ def calcola_rsi(series, period=14):
     rs = avg_g / avg_l
     return 100 - (100 / (1 + rs))
 
+def calcola_atr(df, period=14):
+    tr1 = df['high'] - df['low']
+    tr2 = (df['high'] - df['close'].shift()).abs()
+    tr3 = (df['low'] - df['close'].shift()).abs()
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    return tr.rolling(period).mean()
+
 def calcola_bb(df, period=20):
     tp = (df['high'] + df['low'] + df['close']) / 3
     ma = tp.rolling(period).mean()
@@ -42,7 +49,7 @@ def fmt(v, ticker):
         return f"{v:,.0f}"
     return f"{v:,.2f}"
 
-def backtest_kronos(df, predictor, eur_rate, n_back=10, lookback=60):
+def backtest_kronos(df, predictor, eur_rate, n_back=14, lookback=90):
     df_bt = df.copy()
     results = []
     for offset in range(n_back, 0, -1):
@@ -69,8 +76,9 @@ def backtest_kronos(df, predictor, eur_rate, n_back=10, lookback=60):
 
 def main():
     ticker = sys.argv[1] if len(sys.argv) > 1 else "AAPL"
+    pred_len = 14
     now = datetime.now()
-    now_str = now.strftime("%d %B %Y • %H:%M")
+    now_str = now.strftime("%d %B %Y \u2022 %H:%M")
     now_dmy = now.strftime("%d/%m/%Y")
 
     print(f"1. Download dati {ticker}...")
@@ -87,33 +95,29 @@ def main():
     print(f"2. Tasso EUR/USD...")
     eur_rate = get_eur_rate()
     in_eur = is_eur_ticker(ticker)
-    if in_eur:
-        print(f"   Ticker in EUR, salto conversione")
-    else:
-        print(f"   1 EUR = {eur_rate:.4f} USD")
+    print(f"   {'Ticker in EUR' if in_eur else f'1 EUR = {eur_rate:.4f} USD'}")
 
-    lookback = 60
-    pred_len = 5
+    lookback = 90
     x_df = df.iloc[-lookback:].copy()
     df_input = x_df[['open', 'high', 'low', 'close', 'volume', 'amount']].copy()
     x_ts = pd.Series(pd.to_datetime(x_df['timestamps']).dt.tz_localize(None))
     y_ts = pd.Series(pd.date_range(
-        start=x_ts.iloc[-1] + pd.Timedelta(days=1), periods=pred_len, freq='B'))
+        start=x_ts.iloc[-1] + timedelta(days=1), periods=pred_len, freq='B'))
 
     p_now_raw = df_input['close'].iloc[-1]
     p_now = p_now_raw if in_eur else p_now_raw / eur_rate
-
-    rsi_series = calcola_rsi(df_input['close'])
-    rsi = rsi_series.iloc[-1]
+    rsi = calcola_rsi(df_input['close']).iloc[-1]
+    atr_raw = calcola_atr(x_df).iloc[-1]
+    atr = atr_raw if in_eur else atr_raw / eur_rate
     bbw = calcola_bb(x_df).iloc[-1]
     vol_ratio = df_input['volume'].iloc[-1] / df_input['volume'].rolling(10).mean().iloc[-1]
     vola = df_input['close'].pct_change().rolling(20).std().iloc[-1] * np.sqrt(252) * 100
     ch30 = ((p_now_raw - df_input['close'].iloc[-30]) / df_input['close'].iloc[-30]) * 100
 
     sym = "EUR"
-    print(f"   Prezzo: {fmt(p_now, ticker)} {sym}, RSI: {rsi:.0f}")
+    print(f"   Prezzo: {fmt(p_now, ticker)} {sym}, RSI: {rsi:.0f}, ATR: {atr:.2f}")
 
-    print(f"3. Previsione Kronos...")
+    print(f"3. Previsione Kronos ({pred_len}gg)...")
     tokenizer = KronosTokenizer.from_pretrained("NeoQuasar/Kronos-Tokenizer-base")
     model = Kronos.from_pretrained("NeoQuasar/Kronos-base")
     predictor = KronosPredictor(tokenizer=tokenizer, model=model)
@@ -125,7 +129,55 @@ def main():
         for col in ['open', 'high', 'low', 'close']:
             pred_eur[col] = pred[col] / eur_rate
 
-    print(f"4. Grafico...")
+    pred_close = pred_eur['close'].iloc[-1]
+    pred_ret = (pred_close - p_now) / p_now * 100
+
+    print(f"4. Backtest storico...")
+    backtest = backtest_kronos(df, predictor, 1 if in_eur else eur_rate)
+    mae = sum(abs(b['error_pct']) for b in backtest) / len(backtest) if backtest else 5.0
+    print(f"   MAE medio: {mae:.2f}% ({len(backtest)} test)")
+
+    # Trading signal
+    if rsi < 15:
+        rsi_sig = 2
+    elif rsi < 30:
+        rsi_sig = 1
+    elif rsi > 85:
+        rsi_sig = -2
+    elif rsi > 70:
+        rsi_sig = -1
+    else:
+        rsi_sig = 0
+
+    if pred_ret > 2:
+        trend = 1
+    elif pred_ret < -2:
+        trend = -1
+    else:
+        trend = 0
+
+    mean_rev = rsi < 15 and trend >= 0
+    score = trend * 0.6 + rsi_sig * 0.4
+    mae_ok = abs(pred_ret) > mae * 2
+
+    if mean_rev:
+        action = "BUY"
+        action_col = "#22c55e"
+    elif score > 0.3 and trend == 1 and mae_ok:
+        action = "BUY"
+        action_col = "#22c55e"
+    elif score < -0.3 and trend == -1 and mae_ok:
+        action = "SELL"
+        action_col = "#ef4444"
+    else:
+        action = "HOLD"
+        action_col = "#3b82f6"
+
+    stop_loss = round(p_now - 1.5 * atr, 2) if action == "BUY" else round(p_now + 1.5 * atr, 2) if action == "SELL" else 0
+    target = round(pred_close, 2)
+    rr = round(abs(target - p_now) / abs(stop_loss - p_now), 2) if action != "HOLD" and stop_loss != p_now else 0
+
+    print(f"5. Grafico...")
     fig = go.Figure()
     fig.add_trace(go.Candlestick(
         x=x_ts, open=x_df['open']/(1 if in_eur else eur_rate),
@@ -145,13 +197,7 @@ def main():
         xaxis_rangeslider_visible=False)
     fig.update_xaxes(gridcolor='#f1f5f9', zeroline=False)
     fig.update_yaxes(gridcolor='#f1f5f9', zeroline=False, title=f'Prezzo ({sym})')
-
     img_bytes = fig.to_image(format='png', width=1000, height=400, scale=1)
-
-    print(f"5. Backtest storico...")
-    backtest = backtest_kronos(df, predictor, 1 if in_eur else eur_rate)
-    mae_avg = sum(abs(b['error_pct']) for b in backtest) / len(backtest) if backtest else 0
-    print(f"   MAE medio: {mae_avg:.2f}% ({len(backtest)} test)")
 
     print(f"6. HTML email...")
     rj, rc = ("SOVRACOMPRATO", "#ef4444") if rsi > 70 else ("SOVRAVENDUTO", "#22c55e") if rsi < 30 else ("NEUTRALE", "#3b82f6")
@@ -164,30 +210,59 @@ def main():
         ds = "+" if dl >= 0 else ""
         tab_pred += f"<tr><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{d}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(row['open'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(row['high'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(row['low'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;font-weight:600;'>{fmt(row['close'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:{dc};font-weight:600;'>{ds}{dl:+,.2f}</td></tr>"
 
+    if action in ("BUY", "SELL"):
+        segnale_box = f"""<div style="background:#fff;border-radius:8px;border:2px solid {action_col};overflow:hidden;margin-bottom:10px;padding:14px;">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+    <div style="background:{action_col};color:#fff;font-weight:700;font-size:13px;padding:4px 10px;border-radius:4px;">{action}</div>
+    <div style="font-size:12px;color:#64748b;">Score {score:.2f}</div>
+    <div style="font-size:12px;color:#64748b;margin-left:auto;">Confidenza {abs(score)*100:.0f}%</div>
+  </div>
+  <table width="100%" style="font-size:13px;">
+    <tr><td style="padding:4px 8px;color:#64748b;">Entrata</td><td style="padding:4px 8px;font-weight:700;">{fmt(p_now, ticker)} {sym}</td>
+        <td style="padding:4px 8px;color:#64748b;">Target</td><td style="padding:4px 8px;font-weight:700;color:{action_col};">{fmt(target, ticker)} {sym}</td></tr>
+    <tr><td style="padding:4px 8px;color:#64748b;">Stop Loss</td><td style="padding:4px 8px;font-weight:700;color:#ef4444;">{fmt(stop_loss, ticker)} {sym}</td>
+        <td style="padding:4px 8px;color:#64748b;">R/R</td><td style="padding:4px 8px;font-weight:700;">1:{rr}</td></tr>
+  </table>
+  <div style="font-size:11px;color:#94a3b8;margin-top:6px;padding-top:6px;border-top:1px solid #f1f5f9;">
+    Pred. ritorno: {pred_ret:+.2f}% | ATR: {atr:.2f} | MAE: {mae:.2f}% | VolRatio: {vol_ratio:.2f}x
+  </div>"""
+    else:
+        segnale_box = f"""<div style="background:#fff;border-radius:8px;border:1px solid #e2e8f0;overflow:hidden;margin-bottom:10px;padding:14px;">
+  <div style="text-align:center;padding:8px 0;">
+    <div style="font-size:22px;font-weight:700;color:{action_col};">{action}</div>
+    <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Score {score:.2f} — Nessun setup valido</div>
+  </div>
+  <div style="font-size:11px;color:#94a3b8;text-align:center;">
+    Pred. ritorno: {pred_ret:+.2f}% | MAE soglia: {mae*2:.2f}% | VolRatio: {vol_ratio:.2f}x
+  </div>"""
+
     html = f"""<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>{ticker} — Report Kronos</title>
+<title>{ticker} — Report Trading</title>
 </head>
 <body style="margin:0;padding:0;background:#f4f4f6;color:#1e293b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.4;">
 <div style="width:100%;padding:0;margin:0;">
 
 <div style="background:linear-gradient(135deg,#0b1120,#1e293b);padding:24px 20px 18px;border-radius:10px 10px 0 0;text-align:center;">
-  <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1.2px;">Kronos Daily • {now_dmy} • {now.strftime('%H:%M')}</div>
-  <h1 style="font-size:18px;font-weight:700;color:#fff;margin:6px 0 2px;">{ticker} — Previsione AI</h1>
+  <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1.2px;">Kronos Daily \u2022 {now_dmy} \u2022 {now.strftime('%H:%M')}</div>
+  <h1 style="font-size:18px;font-weight:700;color:#fff;margin:6px 0 2px;">{ticker} — Report Trading</h1>
   <div style="font-size:36px;font-weight:800;color:#d4a853;">{fmt(p_now, ticker)} <span style="font-size:14px;color:#64748b;font-weight:400;">{sym}</span></div>
 </div>
+
+<div style="font-size:15px;font-weight:700;color:#0f172a;margin:16px 0 8px;padding-bottom:5px;border-bottom:2px solid #d4a853;">Segnale di Trading</div>
+{segnale_box}
 
 <table width="100%" cellpadding="0" cellspacing="0" style="margin:12px 0;table-layout:fixed;">
   <col style="width:33%;"><col style="width:33%;"><col style="width:34%;">
   <tr>
     <td style="padding:2px;vertical-align:top;">
       <div style="background:#fff;border-radius:8px;padding:10px 4px;text-align:center;border:1px solid #e2e8f0;">
-        <div style="font-size:18px;font-weight:700;color:#d4a853;">KRONOS AI</div>
-        <div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:3px;">Segnale Predittivo</div>
-        <div style="font-size:11px;color:#94a3b8;margin-top:2px;">Next {pred_len} days</div>
+        <div style="font-size:18px;font-weight:700;color:#d4a853;">{pred_ret:+.2f}%</div>
+        <div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:3px;">Trend AI {pred_len}gg</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:2px;">Target {fmt(target, ticker)}</div>
       </div>
     </td>
     <td style="padding:2px;vertical-align:top;">
@@ -218,45 +293,50 @@ def main():
 </table>
 </div>
 
-<div style="font-size:15px;font-weight:700;color:#0f172a;margin:16px 0 8px;padding-bottom:5px;border-bottom:2px solid #d4a853;">Backtest Previsioni ({len(backtest)} test)</div>
-<div style="background:#fff;border-radius:8px;border:1px solid #e2e8f0;overflow:hidden;margin-bottom:10px;overflow-x:auto;overflow-y:hidden;">
-<table style="width:100%;border-collapse:collapse;font-size:12px;">
-  <thead><tr><th style="background:#f8fafc;color:#64748b;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #e2e8f0;text-align:left;">Data</th><th style="background:#f8fafc;color:#64748b;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #e2e8f0;text-align:left;">Predetto</th><th style="background:#f8fafc;color:#64748b;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #e2e8f0;text-align:left;">Reale</th><th style="background:#f8fafc;color:#64748b;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #e2e8f0;text-align:left;">Errore</th><th style="background:#f8fafc;color:#64748b;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #e2e8f0;text-align:left;">MAE</th></tr></thead>
-  <tbody>{"".join(f"<tr><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{b['date']}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(b['predetto'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(b['reale'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;font-weight:600;color:{'#ef4444' if b['error_pct']<0 else '#22c55e'};'>{b['error_pct']:+.2f}%</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{abs(b['error_pct']):.2f}%</td></tr>" for b in backtest)}</tbody>
-</table>
-</div>
-
-<div style="font-size:15px;font-weight:700;color:#0f172a;margin:16px 0 8px;padding-bottom:5px;border-bottom:2px solid #d4a853;">Contesto</div>
+<div style="font-size:15px;font-weight:700;color:#0f172a;margin:16px 0 8px;padding-bottom:5px;border-bottom:2px solid #d4a853;">Filtri di Contest</div>
 <table width="100%" cellpadding="0" cellspacing="0" style="margin:12px 0;">
   <tr>
-    <td width="33%" style="width:33%;min-width:33%;padding:2px;vertical-align:top;">
+    <td width="25%" style="width:25%;min-width:25%;padding:2px;vertical-align:top;">
       <div style="background:#fff;border-radius:8px;padding:10px 4px;text-align:center;border:1px solid #e2e8f0;">
         <div style="font-size:18px;font-weight:700;">{vola:.1f}%</div>
-        <div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:3px;">Volatilità Annua</div>
-        <div style="font-size:11px;color:#94a3b8;margin-top:2px;">20gg annualizzata</div>
+        <div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:3px;">Volatilita</div>
       </div>
     </td>
-    <td width="33%" style="width:33%;min-width:33%;padding:2px;vertical-align:top;">
+    <td width="25%" style="width:25%;min-width:25%;padding:2px;vertical-align:top;">
       <div style="background:#fff;border-radius:8px;padding:10px 4px;text-align:center;border:1px solid #e2e8f0;">
         <div style="font-size:18px;font-weight:700;">{vol_ratio:.2f}x</div>
         <div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:3px;">Volume Ratio</div>
-        <div style="font-size:11px;color:#94a3b8;margin-top:2px;">vs media 10gg</div>
+        <div style="font-size:10px;color:{'#ef4444' if vol_ratio<0.8 else '#22c55e'};">{'SOTTOMEDIA' if vol_ratio<0.8 else 'NORMALE'}</div>
       </div>
     </td>
-    <td width="33%" style="width:33%;min-width:33%;padding:2px;vertical-align:top;">
+    <td width="25%" style="width:25%;min-width:25%;padding:2px;vertical-align:top;">
       <div style="background:#fff;border-radius:8px;padding:10px 4px;text-align:center;border:1px solid #e2e8f0;">
         <div style="font-size:18px;font-weight:700;">{bbw:.4f}</div>
-        <div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:3px;">Bollinger Width</div>
-        <div style="font-size:11px;color:#94a3b8;margin-top:2px;">Larghezza bande</div>
+        <div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:3px;">Bollinger W.</div>
+      </div>
+    </td>
+    <td width="25%" style="width:25%;min-width:25%;padding:2px;vertical-align:top;">
+      <div style="background:#fff;border-radius:8px;padding:10px 4px;text-align:center;border:1px solid #e2e8f0;">
+        <div style="font-size:18px;font-weight:700;">{atr:.2f}</div>
+        <div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:3px;">ATR 14</div>
+        <div style="font-size:10px;color:#64748b;">SL: {fmt(round(1.5*atr,2),ticker)}</div>
       </div>
     </td>
   </tr>
 </table>
 
+<div style="font-size:15px;font-weight:700;color:#0f172a;margin:16px 0 8px;padding-bottom:5px;border-bottom:2px solid #d4a853;">Backtest Previsioni (14 test)</div>
+<div style="background:#222;border-radius:8px;border:1px solid #333;overflow:hidden;margin-bottom:10px;overflow-x:auto;overflow-y:hidden;">
+<table style="width:100%;border-collapse:collapse;font-size:11px;">
+  <thead><tr><th style="background:#1a1a1a;color:#94a3b8;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #333;text-align:left;">Data</th><th style="background:#1a1a1a;color:#94a3b8;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #333;text-align:left;">Predetto</th><th style="background:#1a1a1a;color:#94a3b8;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #333;text-align:left;">Reale</th><th style="background:#1a1a1a;color:#94a3b8;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #333;text-align:left;">Errore</th><th style="background:#1a1a1a;color:#94a3b8;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #333;text-align:left;">MAE</th></tr></thead>
+  <tbody>{"".join(f"<tr><td style='padding:6px;border-bottom:1px solid #2a2a2a;color:#cbd5e1;'>{b['date']}</td><td style='padding:6px;border-bottom:1px solid #2a2a2a;color:#cbd5e1;'>{fmt(b['predetto'], ticker)}</td><td style='padding:6px;border-bottom:1px solid #2a2a2a;color:#cbd5e1;'>{fmt(b['reale'], ticker)}</td><td style='padding:6px;border-bottom:1px solid #2a2a2a;font-weight:600;color:{'#ef4444' if b['error_pct']<0 else '#22c55e'};'>{b['error_pct']:+.2f}%</td><td style='padding:6px;border-bottom:1px solid #2a2a2a;color:#cbd5e1;'>{abs(b['error_pct']):.2f}%</td></tr>" for b in backtest)}</tbody>
+</table>
+</div>
+
 <div style="text-align:center;padding:14px 0;font-size:10px;color:#94a3b8;">
-  Kronos Quantitative Research • {now_str}<br>
-  Dati: Yahoo Finance • Modello: Kronos-base<br>
-  {ticker} • MAE medio: {mae_avg:.2f}% • Tasso EUR/USD: {eur_rate:.4f}
+  Kronos Quantitative Research \u2022 {now_str}<br>
+  Dati: Yahoo Finance \u2022 Modello: Kronos-base<br>
+  MAE medio: {mae:.2f}% \u2022 Soglia minima: {mae*2:.2f}% \u2022 Tasso EUR/USD: {eur_rate:.4f}
 </div>
 
 </div>
@@ -282,9 +362,9 @@ def main():
         msg_alt = MIMEMultipart('alternative')
         msg['From'] = smtp_user
         msg['To'] = smtp_to
-        msg['Subject'] = f"[Kronos Daily] {ticker} • Report AI • {now_dmy}"
+        msg['Subject'] = f"[Kronos Daily] {ticker} \u2022 {action} \u2022 {fmt(p_now, ticker)} {sym}"
 
-        body_plain = f"Report Kronos per {ticker} del {now_dmy}. Visualizza con client HTML."
+        body_plain = f"Report Kronos per {ticker} del {now_dmy}. Segnale: {action}. Visualizza con client HTML."
         msg_alt.attach(MIMEText(body_plain, 'plain', 'utf-8'))
         msg_alt.attach(MIMEText(html, 'html', 'utf-8'))
         msg.attach(msg_alt)
