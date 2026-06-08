@@ -87,7 +87,8 @@ def main():
     # Costruiamo le righe della tabella HTML per i dati previsti
     table_rows = ""
     for idx, row in previsioni.iterrows():
-        date_str = str(idx.date()) if hasattr(idx, 'date') else str(idx)[:10]
+        d = idx.date() if hasattr(idx, 'date') else pd.Timestamp(idx).date()
+        date_str = d.strftime("%d/%m/%Y")
         table_rows += f"""
         <tr>
             <td style="padding: 12px; border-bottom: 1px solid #2a2e39; color: #d1d4dc;">{date_str}</td>
