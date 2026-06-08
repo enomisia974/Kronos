@@ -1,16 +1,26 @@
-name: Kronos Report Azioni (08:00 Italia)
+name: Kronos Report & Trading (08:00 Italia)
 
 on:
   schedule:
     - cron: "0 6 * * *"
   workflow_dispatch:
 
+env:
+  SMTP_USER: ${{ secrets.SMTP_USER }}
+  SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+  SMTP_TO: ${{ secrets.SMTP_TO }}
+  SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+  SMTP_PORT: ${{ secrets.SMTP_PORT }}
+  ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+  ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+  ALPACA_BASE_URL: ${{ secrets.ALPACA_BASE_URL }}
+
 jobs:
-  report_italia:
+  reports:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        ticker: [BAMI.MI, BMPS.MI, ISP.MI, UNI.MI, LDO.MI]
+        ticker: [BAMI.MI, BMPS.MI, ISP.MI, UNI.MI, LDO.MI, GC=F]
     steps:
       - uses: actions/checkout@v4
 
@@ -19,19 +29,13 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Install dependencies
+      - name: Installa dipendenze
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Report ${{ matrix.ticker }}
         run: python report_azioni.py ${{ matrix.ticker }}
-        env:
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          SMTP_TO: ${{ secrets.SMTP_TO }}
-          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
 
       - name: Upload ${{ matrix.ticker }}
         uses: actions/upload-artifact@v4
@@ -41,7 +45,8 @@ jobs:
           path: Report_${{ matrix.ticker }}.html
           retention-days: 7
 
-  report_gold:
+  trading:
+    needs: reports
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,24 +56,10 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Install dependencies
+      - name: Installa dipendenze
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Report Oro (GC=F)
-        run: python report_azioni.py GC=F
-        env:
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          SMTP_TO: ${{ secrets.SMTP_TO }}
-          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-
-      - name: Upload Oro
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: report-gold
-          path: Report_GC=F.html
-          retention-days: 7
+      - name: Esegui trading agent
+        run: python trader.py BAMI.MI BMPS.MI ISP.MI UNI.MI LDO.MI
