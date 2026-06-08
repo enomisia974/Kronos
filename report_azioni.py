@@ -424,7 +424,7 @@ def genera_html_riepilogo(results, top_data):
 <div style="background:linear-gradient(135deg,#0b1120,#1e293b);padding:22px 18px;text-align:center;border-bottom:2px solid #d4a853;">
   <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1.2px;">Kronos Quantitative Research \u2022 {now_dmy}</div>
   <h1 style="font-size:22px;font-weight:700;color:#d4a853;margin:4px 0;">FTSE MIB — Top Picks</h1>
-  <div style="font-size:12px;color:#94a3b8;">{len(results)} titoli analizzati | {bux} BUY | {rdy} READY | {len(top_data)} migliori selezionati</div>
+  <div style="font-size:12px;color:#94a3b8;">Top {len(results)} — Score: EMA Trend + VCP + Resistenza</div>
 </div>
 
 <div style="padding:12px;">
@@ -541,30 +541,21 @@ def main():
             results.append(s)
 
     results.sort(key=lambda x: x['score'], reverse=True)
-    top = [r for r in results if r['action'] in ("BUY", "READY")]
 
     bux = sum(1 for r in results if r['action']=='BUY')
     rdy = sum(1 for r in results if r['action']=='READY')
     print(f"\n=== RISULTATI: {len(results)} titoli, {bux} BUY, {rdy} READY, {len(results)-bux-rdy} NO ===")
-    for r in results[:5]:
+    for r in results[:10]:
         print(f"    {r['name']:20s} Score {r['score']:3d} {r['action']:5s} {fmt(r['prezzo']):>8s} EUR")
 
-    html_wl = genera_html_watchlist(results)
-    invia_email(f"[Kronos Watchlist] FTSE MIB \u2022 {bux} BUY \u2022 {rdy} READY", html_wl)
-
-    if not top:
-        print("\nNessun segnale BUY/READY, invio solo watchlist.")
-        print("\n=== COMPLETATO ===")
-        return
-
-    top_n = min(len(top), 10)
+    top_n = min(len(results), 10)
     print(f"\nCarico modello Kronos per top {top_n}...")
     tokenizer = KronosTokenizer.from_pretrained("NeoQuasar/Kronos-Tokenizer-base")
     model = Kronos.from_pretrained("NeoQuasar/Kronos-base")
     predictor = KronosPredictor(tokenizer=tokenizer, model=model)
 
     top_data = []
-    for s in top[:top_n]:
+    for s in results[:top_n]:
         print(f"\n  Elaborazione: {s['name']} ({s['action']}, Score {s['score']})")
         try:
             df = all_data[s['ticker']].copy()
@@ -616,8 +607,8 @@ def main():
             print(f"  Errore {s['ticker']}: {e}")
 
     if top_data:
-        html = genera_html_riepilogo(results, top_data)
-        invia_email(f"[Kronos Top 10] FTSE MIB \u2022 {bux} BUY \u2022 {rdy} READY", html)
+        html = genera_html_riepilogo(results[:10], top_data)
+        invia_email(f"[Kronos Top 10] FTSE MIB", html)
         print(f"\nRiepilogo top {len(top_data)} inviato.")
 
     print("\n=== COMPLETATO ===")
