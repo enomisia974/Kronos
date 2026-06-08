@@ -6,7 +6,42 @@ on:
   workflow_dispatch:
 
 jobs:
-  report_azioni:
+  report_italia:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ticker: [BAMI.MI, BMPS.MI, ISP.MI, UNI.MI, LDO.MI]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Report ${{ matrix.ticker }}
+        run: python report_azioni.py ${{ matrix.ticker }}
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_TO: ${{ secrets.SMTP_TO }}
+          SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+
+      - name: Upload ${{ matrix.ticker }}
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-${{ matrix.ticker }}
+          path: Report_${{ matrix.ticker }}.html
+          retention-days: 7
+
+  report_gold:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,8 +56,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Generate and send Apple report (EUR)
-        run: python report_azioni.py AAPL
+      - name: Report Oro (GC=F)
+        run: python report_azioni.py GC=F
         env:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
@@ -30,10 +65,10 @@ jobs:
           SMTP_SERVER: ${{ secrets.SMTP_SERVER }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
 
-      - name: Upload report artefatto
+      - name: Upload Oro
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: report-azioni
-          path: Report_AAPL.html
+          name: report-gold
+          path: Report_GC=F.html
           retention-days: 7

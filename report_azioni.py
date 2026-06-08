@@ -34,8 +34,11 @@ def get_eur_rate():
     close = eur['Close'].iloc[-1]
     return float(close) if isinstance(close, (int, float)) else float(close.iloc[0])
 
+def is_eur_ticker(ticker):
+    return ticker.endswith(".MI") or ticker.endswith(".DE") or ticker.endswith(".PA") or ticker.endswith(".TO")
+
 def fmt(v, ticker):
-    if ticker in ("BTC-USD", "ETH-USD", "SOL-USD"):
+    if ticker in ("BTC-USD", "ETH-USD", "SOL-USD", "GC=F"):
         return f"{v:,.0f}"
     return f"{v:,.2f}"
 
@@ -83,7 +86,11 @@ def main():
 
     print(f"2. Tasso EUR/USD...")
     eur_rate = get_eur_rate()
-    print(f"   1 EUR = {eur_rate:.4f} USD")
+    in_eur = is_eur_ticker(ticker)
+    if in_eur:
+        print(f"   Ticker in EUR, salto conversione")
+    else:
+        print(f"   1 EUR = {eur_rate:.4f} USD")
 
     lookback = 60
     pred_len = 5
@@ -93,17 +100,18 @@ def main():
     y_ts = pd.Series(pd.date_range(
         start=x_ts.iloc[-1] + pd.Timedelta(days=1), periods=pred_len, freq='B'))
 
-    p_now_usd = df_input['close'].iloc[-1]
-    p_now = p_now_usd / eur_rate
+    p_now_raw = df_input['close'].iloc[-1]
+    p_now = p_now_raw if in_eur else p_now_raw / eur_rate
 
     rsi_series = calcola_rsi(df_input['close'])
     rsi = rsi_series.iloc[-1]
     bbw = calcola_bb(x_df).iloc[-1]
     vol_ratio = df_input['volume'].iloc[-1] / df_input['volume'].rolling(10).mean().iloc[-1]
     vola = df_input['close'].pct_change().rolling(20).std().iloc[-1] * np.sqrt(252) * 100
-    ch30 = ((p_now_usd - df_input['close'].iloc[-30]) / df_input['close'].iloc[-30]) * 100
+    ch30 = ((p_now_raw - df_input['close'].iloc[-30]) / df_input['close'].iloc[-30]) * 100
 
-    print(f"   Prezzo: {p_now:,.2f} EUR, RSI: {rsi:.0f}")
+    sym = "EUR"
+    print(f"   Prezzo: {fmt(p_now, ticker)} {sym}, RSI: {rsi:.0f}")
 
     print(f"3. Previsione Kronos...")
     tokenizer = KronosTokenizer.from_pretrained("NeoQuasar/Kronos-Tokenizer-base")
@@ -113,14 +121,17 @@ def main():
         df=df_input, x_timestamp=x_ts, y_timestamp=y_ts, pred_len=pred_len)
 
     pred_eur = pred.copy()
-    for col in ['open', 'high', 'low', 'close']:
-        pred_eur[col] = pred[col] / eur_rate
+    if not in_eur:
+        for col in ['open', 'high', 'low', 'close']:
+            pred_eur[col] = pred[col] / eur_rate
 
     print(f"4. Grafico...")
     fig = go.Figure()
     fig.add_trace(go.Candlestick(
-        x=x_ts, open=x_df['open']/eur_rate, high=x_df['high']/eur_rate,
-        low=x_df['low']/eur_rate, close=x_df['close']/eur_rate,
+        x=x_ts, open=x_df['open']/(1 if in_eur else eur_rate),
+        high=x_df['high']/(1 if in_eur else eur_rate),
+        low=x_df['low']/(1 if in_eur else eur_rate),
+        close=x_df['close']/(1 if in_eur else eur_rate),
         name="Storico", increasing_line_color='#22c55e', decreasing_line_color='#ef4444'))
     fig.add_trace(go.Candlestick(
         x=y_ts, open=pred_eur['open'], high=pred_eur['high'],
@@ -133,12 +144,12 @@ def main():
         hovermode='x unified', legend=dict(orientation='h', y=1.08, x=0, font=dict(size=10)),
         xaxis_rangeslider_visible=False)
     fig.update_xaxes(gridcolor='#f1f5f9', zeroline=False)
-    fig.update_yaxes(gridcolor='#f1f5f9', zeroline=False, title='Prezzo (EUR)')
+    fig.update_yaxes(gridcolor='#f1f5f9', zeroline=False, title=f'Prezzo ({sym})')
 
     img_bytes = fig.to_image(format='png', width=1000, height=400, scale=1)
 
     print(f"5. Backtest storico...")
-    backtest = backtest_kronos(df, predictor, eur_rate)
+    backtest = backtest_kronos(df, predictor, 1 if in_eur else eur_rate)
     mae_avg = sum(abs(b['error_pct']) for b in backtest) / len(backtest) if backtest else 0
     print(f"   MAE medio: {mae_avg:.2f}% ({len(backtest)} test)")
 
@@ -152,8 +163,6 @@ def main():
         dc = "#22c55e" if dl >= 0 else "#ef4444"
         ds = "+" if dl >= 0 else ""
         tab_pred += f"<tr><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{d}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(row['open'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(row['high'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(row['low'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;font-weight:600;'>{fmt(row['close'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:{dc};font-weight:600;'>{ds}{dl:+,.2f}</td></tr>"
-
-    sym = "EUR"
 
     html = f"""<!DOCTYPE html>
 <html lang="it">
