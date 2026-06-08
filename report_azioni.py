@@ -1,4 +1,4 @@
-import os, smtplib, sys
+import os, smtplib, sys, io
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 load_dotenv()
@@ -10,6 +10,27 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from model import Kronos, KronosTokenizer, KronosPredictor
+
+FTSE_MIB = [
+    "A2A.MI","AMP.MI","AZM.MI","BGN.MI","BMED.MI","BMPS.MI","BAMI.MI","BPE.MI",
+    "BC.MI","CPR.MI","DIA.MI","ENEL.MI","ENI.MI","ERG.MI","FBK.MI","G.MI",
+    "HER.MI","IG.MI","IP.MI","ISP.MI","IVG.MI","LDO.MI","MB.MI","MONC.MI",
+    "NEXI.MI","PIRC.MI","PST.MI","PRY.MI","RACE.MI","REC.MI","SPM.MI","SRG.MI",
+    "STLAM.MI","STM.MI","TEN.MI","TIT.MI","TRN.MI","UCG.MI","UNI.MI","US.MI",
+]
+
+ASSET_NAMES = {
+    "A2A.MI":"A2A","AMP.MI":"Amplifon","AZM.MI":"Azimut","BGN.MI":"B.Generali",
+    "BMED.MI":"Mediolanum","BMPS.MI":"M.Paschi","BAMI.MI":"Banco BPM","BPE.MI":"BPER",
+    "BC.MI":"Brunello Cuc.","CPR.MI":"Campari","DIA.MI":"Diasorin","ENEL.MI":"Enel",
+    "ENI.MI":"Eni","ERG.MI":"Erg","FBK.MI":"Fineco","G.MI":"Generali",
+    "HER.MI":"Hera","IG.MI":"Italgas","IP.MI":"Interpump","ISP.MI":"Intesa SP",
+    "IVG.MI":"Iveco","LDO.MI":"Leonardo","MB.MI":"Mediobanca","MONC.MI":"Moncler",
+    "NEXI.MI":"Nexi","PIRC.MI":"Pirelli","PST.MI":"Poste It.","PRY.MI":"Prysmian",
+    "RACE.MI":"Ferrari","REC.MI":"Recordati","SPM.MI":"Saipem","SRG.MI":"Snam",
+    "STLAM.MI":"Stellantis","STM.MI":"STMicro","TEN.MI":"Tenaris","TIT.MI":"Tim",
+    "TRN.MI":"Terna","UCG.MI":"UniCredit","UNI.MI":"Unipol","US.MI":"UnipolSai",
+}
 
 def calcola_rsi(series, period=14):
     delta = series.diff()
@@ -27,360 +48,411 @@ def calcola_atr(df, period=14):
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
     return tr.rolling(period).mean()
 
-def calcola_bb(df, period=20):
-    tp = (df['high'] + df['low'] + df['close']) / 3
-    ma = tp.rolling(period).mean()
-    std = tp.rolling(period).std()
-    bbw = ((ma + 2*std) - (ma - 2*std)) / ma
-    return bbw
+def calcola_ema(series, period):
+    return series.ewm(span=period, adjust=False).mean()
 
-def get_eur_rate():
-    eur = yf.download("EURUSD=X", period="5d", interval="1d")
-    if eur.empty:
-        return 0.92
-    close = eur['Close'].iloc[-1]
-    return float(close) if isinstance(close, (int, float)) else float(close.iloc[0])
-
-def is_eur_ticker(ticker):
-    return ticker.endswith(".MI") or ticker.endswith(".DE") or ticker.endswith(".PA") or ticker.endswith(".TO")
-
-def fmt(v, ticker):
-    if ticker in ("BTC-USD", "ETH-USD", "SOL-USD", "GC=F"):
+def fmt(v):
+    if abs(v) >= 1000:
         return f"{v:,.0f}"
     return f"{v:,.2f}"
 
-def backtest_kronos(df, predictor, eur_rate, n_back=14, lookback=90):
-    df_bt = df.copy()
-    results = []
-    for offset in range(n_back, 0, -1):
-        cut = len(df_bt) - offset
-        if cut < lookback:
-            continue
-        x = df_bt.iloc[cut - lookback:cut].copy()
-        inp = x[['open', 'high', 'low', 'close', 'volume', 'amount']].copy()
-        x_ts = pd.Series(pd.to_datetime(x['timestamps']).dt.tz_localize(None))
-        y_ts = pd.Series([x_ts.iloc[-1] + timedelta(days=1)])
-        p = predictor.predict(df=inp, x_timestamp=x_ts, y_timestamp=y_ts, pred_len=1)
-        pred_close_usd = p['close'].iloc[0]
-        actual_close_usd = df_bt.iloc[cut]['close']
-        err = (pred_close_usd - actual_close_usd) / actual_close_usd * 100
-        d = df_bt.iloc[cut]['timestamps']
-        date = str(d.date()) if hasattr(d, 'date') else str(d)[:10]
-        results.append({
-            'date': date,
-            'predetto': pred_close_usd / eur_rate,
-            'reale': actual_close_usd / eur_rate,
-            'error_pct': err,
-        })
-    return results
+def analizza_ticker(ticker):
+    try:
+        df = yf.download(ticker, period="1y", interval="1d", progress=False)
+        if df.empty:
+            return None
+        df = df.reset_index()
+        df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
+        df = df.rename(columns={'Date':'timestamps','Open':'open','High':'high','Low':'low','Close':'close','Volume':'volume'})
+        df['volume'] = df['volume'].astype(float)
+    except:
+        return None
 
-def main():
-    ticker = sys.argv[1] if len(sys.argv) > 1 else "AAPL"
-    pred_len = 14
-    now = datetime.now()
-    now_str = now.strftime("%d %B %Y \u2022 %H:%M")
-    now_dmy = now.strftime("%d/%m/%Y")
+    if len(df) < 60:
+        return None
 
-    print(f"1. Download dati {ticker}...")
-    df = yf.download(ticker, period="1y", interval="1d")
-    df = df.reset_index()
-    df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
-    df = df.rename(columns={
-        'Date': 'timestamps', 'Open': 'open', 'High': 'high', 'Low': 'low',
-        'Close': 'close', 'Volume': 'volume'
-    })
-    df['volume'] = df['volume'].astype(float)
-    df['amount'] = df['close'] * df['volume']
+    p = df['close'].iloc[-1]
+    ema10 = calcola_ema(df['close'], 10).iloc[-1]
+    ema20 = calcola_ema(df['close'], 20).iloc[-1]
+    ema50 = calcola_ema(df['close'], 50).iloc[-1]
+    rsi = calcola_rsi(df['close']).iloc[-1]
+    atr = calcola_atr(df).iloc[-1]
+    vol_ratio = df['volume'].iloc[-1] / df['volume'].rolling(10).mean().iloc[-1]
 
-    print(f"2. Tasso EUR/USD...")
-    eur_rate = get_eur_rate()
-    in_eur = is_eur_ticker(ticker)
-    print(f"   {'Ticker in EUR' if in_eur else f'1 EUR = {eur_rate:.4f} USD'}")
+    resistenza = df['high'].iloc[-60:-1].max() if len(df) >= 60 else df['high'].max()
+    dist_res = (p - resistenza) / resistenza * 100
 
-    lookback = 90
-    x_df = df.iloc[-lookback:].copy()
-    df_input = x_df[['open', 'high', 'low', 'close', 'volume', 'amount']].copy()
-    x_ts = pd.Series(pd.to_datetime(x_df['timestamps']).dt.tz_localize(None))
-    y_ts = pd.Series(pd.date_range(
-        start=x_ts.iloc[-1] + timedelta(days=1), periods=pred_len, freq='B'))
+    returns_20d = df['close'].pct_change().tail(20).dropna()
+    varianza_20d = returns_20d.var()
+    media_close_20d = df['close'].tail(20).mean()
+    vcp = varianza_20d < (media_close_20d * 0.0008)
 
-    p_now_raw = df_input['close'].iloc[-1]
-    p_now = p_now_raw if in_eur else p_now_raw / eur_rate
-    rsi = calcola_rsi(df_input['close']).iloc[-1]
-    atr_raw = calcola_atr(x_df).iloc[-1]
-    atr = atr_raw if in_eur else atr_raw / eur_rate
-    bbw = calcola_bb(x_df).iloc[-1]
-    vol_ratio = df_input['volume'].iloc[-1] / df_input['volume'].rolling(10).mean().iloc[-1]
-    vola = df_input['close'].pct_change().rolling(20).std().iloc[-1] * np.sqrt(252) * 100
-    ch30 = ((p_now_raw - df_input['close'].iloc[-30]) / df_input['close'].iloc[-30]) * 100
+    ch30 = ((p - df['close'].iloc[-30]) / df['close'].iloc[-30]) * 100 if len(df) >= 30 else 0
+    vola = df['close'].pct_change().rolling(20).std().iloc[-1] * np.sqrt(252) * 100
 
-    sym = "EUR"
-    print(f"   Prezzo: {fmt(p_now, ticker)} {sym}, RSI: {rsi:.0f}, ATR: {atr:.2f}")
+    score = 0
+    filters = []
 
-    print(f"3. Previsione Kronos ({pred_len}gg)...")
-    tokenizer = KronosTokenizer.from_pretrained("NeoQuasar/Kronos-Tokenizer-base")
-    model = Kronos.from_pretrained("NeoQuasar/Kronos-base")
-    predictor = KronosPredictor(tokenizer=tokenizer, model=model)
-    pred = predictor.predict(
-        df=df_input, x_timestamp=x_ts, y_timestamp=y_ts, pred_len=pred_len)
-
-    pred_eur = pred.copy()
-    if not in_eur:
-        for col in ['open', 'high', 'low', 'close']:
-            pred_eur[col] = pred[col] / eur_rate
-
-    pred_close = pred_eur['close'].iloc[-1]
-    pred_ret = (pred_close - p_now) / p_now * 100
-
-    print(f"4. Backtest storico...")
-    backtest = backtest_kronos(df, predictor, 1 if in_eur else eur_rate)
-    mae = sum(abs(b['error_pct']) for b in backtest) / len(backtest) if backtest else 5.0
-    print(f"   MAE medio: {mae:.2f}% ({len(backtest)} test)")
-
-    # Trading signal
-    if rsi < 15:
-        rsi_sig = 2
-    elif rsi < 30:
-        rsi_sig = 1
-    elif rsi > 85:
-        rsi_sig = -2
-    elif rsi > 70:
-        rsi_sig = -1
+    if ema10 > ema20 > ema50:
+        score += 40
+        filters.append(("EMA Trend +40", True))
     else:
-        rsi_sig = 0
+        filters.append(("EMA Trend", False))
 
-    if pred_ret > 2:
-        trend = 1
-    elif pred_ret < -2:
-        trend = -1
+    if vcp:
+        score += 30
+        filters.append(("VCP +30", True))
     else:
-        trend = 0
+        filters.append(("VCP", False))
 
-    mean_rev = rsi < 15 and trend >= 0
-    score = trend * 0.6 + rsi_sig * 0.4
-    mae_ok = abs(pred_ret) > mae * 2
+    if p >= resistenza:
+        score += 30
+        filters.append(("Breakout +30", True))
+        resist_status = "BREAKOUT"
+    elif -0.20 <= dist_res <= 1.00:
+        score += 20
+        filters.append(("Ready +20", True))
+        resist_status = "READY"
+    else:
+        filters.append(("Resistenza", False))
+        resist_status = "LONTANO"
 
-    if mean_rev:
+    if score >= 70:
         action = "BUY"
-        action_col = "#22c55e"
-    elif score > 0.3 and trend == 1 and mae_ok:
-        action = "BUY"
-        action_col = "#22c55e"
-    elif score < -0.3 and trend == -1 and mae_ok:
-        action = "SELL"
-        action_col = "#ef4444"
+    elif score >= 60:
+        action = "READY"
     else:
-        action = "HOLD"
-        action_col = "#3b82f6"
+        action = "NO"
 
-    stop_loss = round(p_now - 1.5 * atr, 2) if action == "BUY" else round(p_now + 1.5 * atr, 2) if action == "SELL" else 0
-    target = round(pred_close, 2)
-    rr = round(abs(target - p_now) / abs(stop_loss - p_now), 2) if action != "HOLD" and stop_loss != p_now else 0
+    sl = ema20
+    capitale = 10000
+    rischio_pct = 1.50
+    perdita_max = capitale * (rischio_pct / 100)
+    dist_sl_pct = abs(p - sl) / p if p != sl else 0.01
+    size_quote = perdita_max / (abs(p - sl)) if abs(p - sl) > 0 else 0
+    size_eur = size_quote * p
 
-    print(f"5. Grafico...")
-    fig = go.Figure()
-    fig.add_trace(go.Candlestick(
-        x=x_ts, open=x_df['open']/(1 if in_eur else eur_rate),
-        high=x_df['high']/(1 if in_eur else eur_rate),
-        low=x_df['low']/(1 if in_eur else eur_rate),
-        close=x_df['close']/(1 if in_eur else eur_rate),
-        name="Storico", increasing_line_color='#22c55e', decreasing_line_color='#ef4444'))
-    fig.add_trace(go.Candlestick(
-        x=y_ts, open=pred_eur['open'], high=pred_eur['high'],
-        low=pred_eur['low'], close=pred_eur['close'],
-        name="Previsione", increasing_line_color='#3b82f6', decreasing_line_color='#8b5cf6'))
-    fig.update_layout(
-        template='none', height=400, margin=dict(l=10,r=10,t=10,b=10),
-        paper_bgcolor='white', plot_bgcolor='white',
-        font=dict(family='Inter, sans-serif', size=11, color='#334155'),
-        hovermode='x unified', legend=dict(orientation='h', y=1.08, x=0, font=dict(size=10)),
-        xaxis_rangeslider_visible=False)
-    fig.update_xaxes(gridcolor='#f1f5f9', zeroline=False)
-    fig.update_yaxes(gridcolor='#f1f5f9', zeroline=False, title=f'Prezzo ({sym})')
-    img_bytes = fig.to_image(format='png', width=1000, height=400, scale=1)
+    return {
+        'ticker': ticker, 'name': ASSET_NAMES.get(ticker, ticker), 'prezzo': p,
+        'ema10': ema10, 'ema20': ema20, 'ema50': ema50,
+        'rsi': rsi, 'atr': atr, 'vol_ratio': vol_ratio,
+        'resistenza': resistenza, 'dist_res_pct': dist_res, 'resist_status': resist_status,
+        'vcp': vcp, 'ch30': ch30, 'vola': vola,
+        'score': score, 'action': action, 'filters': filters,
+        'sl_ema20': sl, 'dist_sl_pct': dist_sl_pct * 100,
+        'size_quote': int(size_quote), 'size_eur': size_eur,
+    }
 
-    print(f"6. HTML email...")
-    rj, rc = ("SOVRACOMPRATO", "#ef4444") if rsi > 70 else ("SOVRAVENDUTO", "#22c55e") if rsi < 30 else ("NEUTRALE", "#3b82f6")
-
-    tab_pred = ""
-    for idx, row in pred_eur.iterrows():
-        d = str(idx.date()) if hasattr(idx, 'date') else str(idx)[:10]
-        dl = row['close'] - row['open']
-        dc = "#22c55e" if dl >= 0 else "#ef4444"
-        tab_pred += f"<tr><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{d}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(row['open'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(row['high'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(row['low'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;font-weight:600;'>{fmt(row['close'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:{dc};font-weight:600;'>{dl:+,.2f}</td></tr>"
-
-    if action in ("BUY", "SELL"):
-        segnale_box = f"""<div style="background:#fff;border-radius:8px;border:2px solid {action_col};overflow:hidden;margin-bottom:10px;padding:14px;">
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-    <div style="background:{action_col};color:#fff;font-weight:700;font-size:13px;padding:4px 10px;border-radius:4px;">{action}</div>
-    <div style="font-size:12px;color:#64748b;">Score {score:.2f}</div>
-    <div style="font-size:12px;color:#64748b;margin-left:auto;">Confidenza {abs(score)*100:.0f}%</div>
-  </div>
-  <table width="100%" style="font-size:13px;">
-    <tr><td style="padding:4px 8px;color:#64748b;">Entrata</td><td style="padding:4px 8px;font-weight:700;">{fmt(p_now, ticker)} {sym}</td>
-        <td style="padding:4px 8px;color:#64748b;">Target</td><td style="padding:4px 8px;font-weight:700;color:{action_col};">{fmt(target, ticker)} {sym}</td></tr>
-    <tr><td style="padding:4px 8px;color:#64748b;">Stop Loss</td><td style="padding:4px 8px;font-weight:700;color:#ef4444;">{fmt(stop_loss, ticker)} {sym}</td>
-        <td style="padding:4px 8px;color:#64748b;">R/R</td><td style="padding:4px 8px;font-weight:700;">1:{rr}</td></tr>
-  </table>
-  <div style="font-size:11px;color:#94a3b8;margin-top:6px;padding-top:6px;border-top:1px solid #f1f5f9;">
-    Pred. ritorno: {pred_ret:+.2f}% | ATR: {atr:.2f} | MAE: {mae:.2f}% | VolRatio: {vol_ratio:.2f}x
-  </div>"""
-    else:
-        segnale_box = f"""<div style="background:#fff;border-radius:8px;border:1px solid #e2e8f0;overflow:hidden;margin-bottom:10px;padding:14px;">
-  <div style="text-align:center;padding:8px 0;">
-    <div style="font-size:22px;font-weight:700;color:{action_col};">{action}</div>
-    <div style="font-size:11px;color:#94a3b8;margin-top:4px;">Score {score:.2f} — Nessun setup valido</div>
-  </div>
-  <div style="font-size:11px;color:#94a3b8;text-align:center;">
-    Pred. ritorno: {pred_ret:+.2f}% | MAE soglia: {mae*2:.2f}% | VolRatio: {vol_ratio:.2f}x
-  </div>"""
-
-    html = f"""<!DOCTYPE html>
-<html lang="it">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>{ticker} — Report Trading</title>
-</head>
-<body style="margin:0;padding:0;background:#f4f4f6;color:#1e293b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.4;">
-<div style="width:100%;padding:0;margin:0;">
-
-<div style="background:linear-gradient(135deg,#0b1120,#1e293b);padding:24px 20px 18px;border-radius:10px 10px 0 0;text-align:center;">
-  <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1.2px;">Kronos Daily \u2022 {now_dmy} \u2022 {now.strftime('%H:%M')}</div>
-  <h1 style="font-size:18px;font-weight:700;color:#fff;margin:6px 0 2px;">{ticker} — Report Trading</h1>
-  <div style="font-size:36px;font-weight:800;color:#d4a853;">{fmt(p_now, ticker)} <span style="font-size:14px;color:#64748b;font-weight:400;">{sym}</span></div>
-</div>
-
-<div style="font-size:15px;font-weight:700;color:#0f172a;margin:16px 0 8px;padding-bottom:5px;border-bottom:2px solid #d4a853;">Segnale di Trading</div>
-{segnale_box}
-
-<table width="100%" cellpadding="0" cellspacing="0" style="margin:12px 0;table-layout:fixed;">
-  <col style="width:33%;"><col style="width:33%;"><col style="width:34%;">
-  <tr>
-    <td style="padding:2px;vertical-align:top;">
-      <div style="background:#fff;border-radius:8px;padding:10px 4px;text-align:center;border:1px solid #e2e8f0;">
-        <div style="font-size:18px;font-weight:700;color:#d4a853;">{pred_ret:+.2f}%</div>
-        <div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:3px;">Trend AI {pred_len}gg</div>
-        <div style="font-size:11px;color:#94a3b8;margin-top:2px;">Target {fmt(target, ticker)}</div>
-      </div>
-    </td>
-    <td style="padding:2px;vertical-align:top;">
-      <div style="background:#fff;border-radius:8px;padding:10px 4px;text-align:center;border:1px solid #e2e8f0;">
-        <div style="font-size:18px;font-weight:700;color:{rc};">{rj}</div>
-        <div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:3px;">RSI 14</div>
-        <div style="font-size:11px;color:#94a3b8;margin-top:2px;">{rsi:.0f}</div>
-      </div>
-    </td>
-    <td style="padding:2px;vertical-align:top;">
-      <div style="background:#fff;border-radius:8px;padding:10px 4px;text-align:center;border:1px solid #e2e8f0;">
-        <div style="font-size:18px;font-weight:700;color:{'#22c55e' if ch30>=0 else '#ef4444'};">{ch30:+.1f}%</div>
-        <div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:3px;">Performance 30gg</div>
-        <div style="font-size:11px;color:#94a3b8;margin-top:2px;">Vol {vola:.0f}%</div>
-      </div>
-    </td>
-  </tr>
-</table>
-
-<div style="font-size:15px;font-weight:700;color:#0f172a;margin:16px 0 8px;padding-bottom:5px;border-bottom:2px solid #d4a853;">Analisi Grafica</div>
-<div style="background:#fff;border-radius:8px;border:1px solid #e2e8f0;overflow:hidden;margin-bottom:10px;"><div style="padding:6px;text-align:center;"><img src="cid:chart" style="max-width:100%;height:auto;display:block;" alt="{ticker} Chart"/></div></div>
-
-<div style="font-size:15px;font-weight:700;color:#0f172a;margin:16px 0 8px;padding-bottom:5px;border-bottom:2px solid #d4a853;">Previsione Dettaglio</div>
-<div style="background:#fff;border-radius:8px;border:1px solid #e2e8f0;overflow:hidden;margin-bottom:10px;overflow-x:auto;overflow-y:hidden;">
-<table style="width:100%;border-collapse:collapse;font-size:12px;">
-  <thead><tr><th style="background:#f8fafc;color:#64748b;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #e2e8f0;text-align:left;">Data</th><th style="background:#f8fafc;color:#64748b;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #e2e8f0;text-align:left;">Apertura</th><th style="background:#f8fafc;color:#64748b;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #e2e8f0;text-align:left;">Max</th><th style="background:#f8fafc;color:#64748b;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #e2e8f0;text-align:left;">Min</th><th style="background:#f8fafc;color:#64748b;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #e2e8f0;text-align:left;">Chiusura</th><th style="background:#f8fafc;color:#64748b;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #e2e8f0;text-align:left;">Delta</th></tr></thead>
-  <tbody>{tab_pred}</tbody>
-</table>
-</div>
-
-<div style="font-size:15px;font-weight:700;color:#0f172a;margin:16px 0 8px;padding-bottom:5px;border-bottom:2px solid #d4a853;">Filtri di Contest</div>
-<table width="100%" cellpadding="0" cellspacing="0" style="margin:12px 0;">
-  <tr>
-    <td width="25%" style="width:25%;min-width:25%;padding:2px;vertical-align:top;">
-      <div style="background:#fff;border-radius:8px;padding:10px 4px;text-align:center;border:1px solid #e2e8f0;">
-        <div style="font-size:18px;font-weight:700;">{vola:.1f}%</div>
-        <div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:3px;">Volatilita</div>
-      </div>
-    </td>
-    <td width="25%" style="width:25%;min-width:25%;padding:2px;vertical-align:top;">
-      <div style="background:#fff;border-radius:8px;padding:10px 4px;text-align:center;border:1px solid #e2e8f0;">
-        <div style="font-size:18px;font-weight:700;">{vol_ratio:.2f}x</div>
-        <div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:3px;">Volume Ratio</div>
-        <div style="font-size:10px;color:{'#ef4444' if vol_ratio<0.8 else '#22c55e'};">{'SOTTOMEDIA' if vol_ratio<0.8 else 'NORMALE'}</div>
-      </div>
-    </td>
-    <td width="25%" style="width:25%;min-width:25%;padding:2px;vertical-align:top;">
-      <div style="background:#fff;border-radius:8px;padding:10px 4px;text-align:center;border:1px solid #e2e8f0;">
-        <div style="font-size:18px;font-weight:700;">{bbw:.4f}</div>
-        <div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:3px;">Bollinger W.</div>
-      </div>
-    </td>
-    <td width="25%" style="width:25%;min-width:25%;padding:2px;vertical-align:top;">
-      <div style="background:#fff;border-radius:8px;padding:10px 4px;text-align:center;border:1px solid #e2e8f0;">
-        <div style="font-size:18px;font-weight:700;">{atr:.2f}</div>
-        <div style="font-size:9px;color:#64748b;text-transform:uppercase;margin-top:3px;">ATR 14</div>
-        <div style="font-size:10px;color:#64748b;">SL: {fmt(round(1.5*atr,2),ticker)}</div>
-      </div>
-    </td>
-  </tr>
-</table>
-
-<div style="font-size:15px;font-weight:700;color:#0f172a;margin:16px 0 8px;padding-bottom:5px;border-bottom:2px solid #d4a853;">Backtest Previsioni (14 test)</div>
-<div style="background:#222;border-radius:8px;border:1px solid #333;overflow:hidden;margin-bottom:10px;overflow-x:auto;overflow-y:hidden;">
-<table style="width:100%;border-collapse:collapse;font-size:11px;">
-  <thead><tr><th style="background:#1a1a1a;color:#94a3b8;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #333;text-align:left;">Data</th><th style="background:#1a1a1a;color:#94a3b8;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #333;text-align:left;">Predetto</th><th style="background:#1a1a1a;color:#94a3b8;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #333;text-align:left;">Reale</th><th style="background:#1a1a1a;color:#94a3b8;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #333;text-align:left;">Errore</th><th style="background:#1a1a1a;color:#94a3b8;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #333;text-align:left;">MAE</th></tr></thead>
-  <tbody>{"".join(f"<tr><td style='padding:6px;border-bottom:1px solid #2a2a2a;color:#cbd5e1;'>{b['date']}</td><td style='padding:6px;border-bottom:1px solid #2a2a2a;color:#cbd5e1;'>{fmt(b['predetto'], ticker)}</td><td style='padding:6px;border-bottom:1px solid #2a2a2a;color:#cbd5e1;'>{fmt(b['reale'], ticker)}</td><td style='padding:6px;border-bottom:1px solid #2a2a2a;font-weight:600;color:{'#ef4444' if b['error_pct']<0 else '#22c55e'};'>{b['error_pct']:+.2f}%</td><td style='padding:6px;border-bottom:1px solid #2a2a2a;color:#cbd5e1;'>{abs(b['error_pct']):.2f}%</td></tr>" for b in backtest)}</tbody>
-</table>
-</div>
-
-<div style="text-align:center;padding:14px 0;font-size:10px;color:#94a3b8;">
-  Kronos Quantitative Research \u2022 {now_str}<br>
-  Dati: Yahoo Finance \u2022 Modello: Kronos-base<br>
-  MAE medio: {mae:.2f}% \u2022 Soglia minima: {mae*2:.2f}% \u2022 Tasso EUR/USD: {eur_rate:.4f}
-</div>
-
-</div>
-</body>
-</html>"""
-
-    safe_ticker = ticker.replace("=", "").replace("-", "_")
-    output_filename = f"Report_{safe_ticker}.html"
-    print(f"7. Salvataggio report...")
-    with open(output_filename, "w", encoding="utf-8") as f:
-        f.write(html)
-    print(f"   Report salvato: {output_filename}")
-
+def invia_email(subject, html_body, img_bytes=None, ticker=""):
     smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
     smtp_port = int(os.environ.get("SMTP_PORT", "587"))
     smtp_user = os.environ.get("SMTP_USER", "enomisia974@gmail.com")
     smtp_password = os.environ.get("SMTP_PASSWORD", "")
     smtp_to = os.environ.get("SMTP_TO", "enomisia974@gmail.com")
 
-    if smtp_password:
-        msg = MIMEMultipart('related')
-        msg.preamble = 'This is a multi-part message in MIME format.'
-        msg_alt = MIMEMultipart('alternative')
-        msg['From'] = smtp_user
-        msg['To'] = smtp_to
-        msg['Subject'] = f"[Kronos Daily] {ticker} \u2022 {action} \u2022 {fmt(p_now, ticker)} {sym}"
+    if not smtp_password:
+        print("   SMTP_PASSWORD non impostata, salto email")
+        return
 
-        body_plain = f"Report Kronos per {ticker} del {now_dmy}. Segnale: {action}. Visualizza con client HTML."
-        msg_alt.attach(MIMEText(body_plain, 'plain', 'utf-8'))
-        msg_alt.attach(MIMEText(html, 'html', 'utf-8'))
-        msg.attach(msg_alt)
-
-        img = MIMEImage(img_bytes, name='chart.png')
+    msg = MIMEMultipart('related')
+    msg.preamble = 'This is a multi-part message in MIME format.'
+    msg_alt = MIMEMultipart('alternative')
+    msg['From'] = smtp_user
+    msg['To'] = smtp_to
+    msg['Subject'] = subject
+    msg_alt.attach(MIMEText(subject, 'plain', 'utf-8'))
+    msg_alt.attach(MIMEText(html_body, 'html', 'utf-8'))
+    msg.attach(msg_alt)
+    if img_bytes:
+        img = MIMEImage(img_bytes, name=f'{ticker}_chart.png')
         img.add_header('Content-ID', '<chart>')
         img.add_header('Content-Disposition', 'inline')
         msg.attach(img)
+    s = smtplib.SMTP(smtp_server, smtp_port)
+    s.starttls()
+    s.login(smtp_user, smtp_password)
+    s.sendmail(smtp_user, [smtp_to], msg.as_string())
+    s.quit()
+    print(f"   Email inviata a {smtp_to}")
 
-        s = smtplib.SMTP(smtp_server, smtp_port)
-        s.starttls()
-        s.login(smtp_user, smtp_password)
-        s.sendmail(smtp_user, [smtp_to], msg.as_string())
-        s.quit()
-        print(f"   Email inviata a {smtp_to}")
-    else:
-        print("   SMTP_PASSWORD non impostata, salto invio email.")
+def genera_html_individuale(s, pred_eur, backtest):
+    p_now = s['prezzo']
+    ticker = s['ticker']
+    now = datetime.now()
+    now_str = now.strftime("%d %B %Y \u2022 %H:%M")
+    now_dmy = now.strftime("%d/%m/%Y")
+
+    el = "#22c55e" if s['action'] == "BUY" else "#f59e0b" if s['action'] == "READY" else "#64748b"
+    tc = "#22c55e" if s['ch30'] >= 0 else "#ef4444"
+
+    tab_pred = ""
+    if pred_eur is not None:
+        for idx, row in pred_eur.iterrows():
+            d = str(idx.date()) if hasattr(idx, 'date') else str(idx)[:10]
+            dl = row['close'] - row['open']
+            dc = "#22c55e" if dl >= 0 else "#ef4444"
+            tab_pred += f"<tr><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{d}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(row['open'])}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(row['high'])}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(row['low'])}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;font-weight:600;'>{fmt(row['close'])}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:{dc};font-weight:600;'>{dl:+,.2f}</td></tr>"
+
+    tab_back = ""
+    if backtest:
+        for b in backtest:
+            tab_back += f"<tr><td style='padding:6px;border-bottom:1px solid #2a2a2a;color:#cbd5e1;'>{b['date']}</td><td style='padding:6px;border-bottom:1px solid #2a2a2a;color:#cbd5e1;'>{fmt(b['predetto'])}</td><td style='padding:6px;border-bottom:1px solid #2a2a2a;color:#cbd5e1;'>{fmt(b['reale'])}</td><td style='padding:6px;border-bottom:1px solid #2a2a2a;font-weight:600;color:{'#ef4444' if b['error_pct']<0 else '#22c55e'}'>{b['error_pct']:+.2f}%</td><td style='padding:6px;border-bottom:1px solid #2a2a2a;color:#cbd5e1;'>{abs(b['error_pct']):.2f}%</td></tr>"
+
+    mae_text = f"MAE: {abs(np.mean([b['error_pct'] for b in backtest])):.2f}%" if backtest else ""
+
+    f_rows = "".join(f"<tr><td style='padding:3px 8px;font-size:11px;color:{'#22c55e' if ok else '#ef4444'};'>{'✓' if ok else '✗'} {n}</td></tr>" for n, ok in s['filters'])
+
+    return f"""<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>{ticker} — Report Kronos</title></head>
+<body style="margin:0;padding:0;background:#f4f4f6;color:#1e293b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.4;">
+<div style="width:100%;padding:0;margin:0;">
+
+<div style="background:linear-gradient(135deg,#0b1120,#1e293b);padding:24px 20px 18px;border-radius:10px 10px 0 0;text-align:center;">
+  <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1.2px;">Kronos Daily \u2022 {now_dmy} \u2022 {now.strftime('%H:%M')}</div>
+  <h1 style="font-size:18px;font-weight:700;color:#fff;margin:6px 0 2px;">{ticker} — {s['name']}</h1>
+  <div style="font-size:36px;font-weight:800;color:#d4a853;">{fmt(p_now)} <span style="font-size:14px;color:#64748b;font-weight:400;">EUR</span></div>
+</div>
+
+<div style="font-size:15px;font-weight:700;color:#0f172a;margin:16px 0 8px;padding-bottom:5px;border-bottom:2px solid #d4a853;">Segnale</div>
+<div style="background:#fff;border-radius:8px;border:2px solid {el};padding:14px;margin-bottom:10px;">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+    <div style="background:{el};color:#fff;font-weight:700;font-size:16px;padding:6px 14px;border-radius:4px;">{s['action']}</div>
+    <div style="font-size:13px;color:#334155;">Score <b>{s['score']}</b>/100</div>
+    <div style="margin-left:auto;font-size:11px;color:#64748b;">{s['resist_status']}</div>
+  </div>
+  <table width="100%" style="font-size:13px;">
+    <tr><td style="padding:3px 8px;color:#64748b;">Entrata</td><td style="padding:3px 8px;font-weight:700;">{fmt(s['prezzo'])} EUR</td>
+        <td style="padding:3px 8px;color:#64748b;">Stop Loss</td><td style="padding:3px 8px;font-weight:700;color:#ef4444;">{fmt(s['sl_ema20'])} EUR</td></tr>
+    <tr><td style="padding:3px 8px;color:#64748b;">Dimensione</td><td style="padding:3px 8px;font-weight:700;">{s['size_quote']} azioni ({fmt(s['size_eur'])} EUR)</td>
+        <td style="padding:3px 8px;color:#64748b;">Max Perdita</td><td style="padding:3px 8px;font-weight:700;">150.00 EUR</td></tr>
+  </table>
+  <table style="margin-top:6px;">{f_rows}</table>
+  <div style="font-size:11px;color:#94a3b8;margin-top:6px;padding-top:6px;border-top:1px solid #f1f5f9;">
+    RSI {s['rsi']:.0f} | ATR {s['atr']:.2f} | VolRatio {s['vol_ratio']:.2f}x | Dist.Res {s['dist_res_pct']:+.2f}% | {mae_text}
+  </div>
+</div>
+
+<div style="font-size:15px;font-weight:700;color:#0f172a;margin:16px 0 8px;padding-bottom:5px;border-bottom:2px solid #d4a853;">Analisi Grafica</div>
+<div style="background:#fff;border-radius:8px;border:1px solid #e2e8f0;overflow:hidden;margin-bottom:10px;"><div style="padding:6px;text-align:center;"><img src="cid:chart" style="max-width:100%;height:auto;display:block;" alt="{ticker} Chart"/></div></div>
+
+<div style="font-size:15px;font-weight:700;color:#0f172a;margin:16px 0 8px;padding-bottom:5px;border-bottom:2px solid #d4a853;">Previsione Dettaglio</div>
+<div style="background:#fff;border-radius:8px;border:1px solid #e2e8f0;overflow:hidden;margin-bottom:10px;overflow-x:auto;">
+<table style="width:100%;border-collapse:collapse;font-size:12px;">
+<thead><tr><th style="background:#f8fafc;color:#64748b;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #e2e8f0;text-align:left;">Data</th><th style="background:#f8fafc;color:#64748b;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #e2e8f0;text-align:left;">Apertura</th><th style="background:#f8fafc;color:#64748b;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #e2e8f0;text-align:left;">Max</th><th style="background:#f8fafc;color:#64748b;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #e2e8f0;text-align:left;">Min</th><th style="background:#f8fafc;color:#64748b;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #e2e8f0;text-align:left;">Chiusura</th><th style="background:#f8fafc;color:#64748b;padding:8px 6px;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #e2e8f0;text-align:left;">Delta</th></tr></thead>
+<tbody>{tab_pred}</tbody>
+</table></div>
+
+<div style="font-size:15px;font-weight:700;color:#0f172a;margin:16px 0 8px;padding-bottom:5px;border-bottom:2px solid #d4a853;">Backtest</div>
+<div style="background:#222;border-radius:8px;border:1px solid #333;overflow:hidden;margin-bottom:10px;overflow-x:auto;">
+<table style="width:100%;border-collapse:collapse;font-size:11px;">
+<thead><tr><th style="background:#1a1a1a;color:#94a3b8;padding:8px 6px;font-weight:600;font-size:9px;border-bottom:1px solid #333;text-align:left;">Data</th><th style="background:#1a1a1a;color:#94a3b8;padding:8px 6px;font-weight:600;font-size:9px;border-bottom:1px solid #333;text-align:left;">Predetto</th><th style="background:#1a1a1a;color:#94a3b8;padding:8px 6px;font-weight:600;font-size:9px;border-bottom:1px solid #333;text-align:left;">Reale</th><th style="background:#1a1a1a;color:#94a3b8;padding:8px 6px;font-weight:600;font-size:9px;border-bottom:1px solid #333;text-align:left;">Errore</th><th style="background:#1a1a1a;color:#94a3b8;padding:8px 6px;font-weight:600;font-size:9px;border-bottom:1px solid #333;text-align:left;">MAE</th></tr></thead>
+<tbody>{tab_back}</tbody>
+</table></div>
+
+<div style="text-align:center;padding:14px 0;font-size:10px;color:#94a3b8;">
+Kronos Quantitative Research \u2022 {now_str}<br>Dati: Yahoo Finance \u2022 Modello: Kronos-base</div>
+</div></body></html>"""
+
+def genera_html_watchlist(results):
+    now = datetime.now()
+    now_dmy = now.strftime("%d/%m/%Y")
+    rows = ""
+    for r in results:
+        ac = "#22c55e" if r['action'] == "BUY" else "#f59e0b" if r['action'] == "READY" else "#64748b"
+        bg = "#052e16" if r['action'] == "BUY" else "#1c1917" if r['action'] == "READY" else "#0f172a"
+        tc = "#22c55e" if r['ch30'] >= 0 else "#ef4444"
+        rows += f"<tr style='background:{bg};'>"
+        rows += f"<td style='padding:8px;border-bottom:1px solid #1e293b;color:#e2e8f0;font-weight:600;'>{r['name']}</td>"
+        rows += f"<td style='padding:8px;border-bottom:1px solid #1e293b;color:#e2e8f0;'>{r['ticker']}</td>"
+        rows += f"<td style='padding:8px;border-bottom:1px solid #1e293b;color:#e2e8f0;'>{fmt(r['prezzo'])}</td>"
+        rows += f"<td style='padding:8px;border-bottom:1px solid #1e293b;'><div style='background:{ac};color:#fff;font-weight:700;font-size:11px;padding:2px 8px;border-radius:3px;text-align:center;display:inline-block;'>{r['action']}</div></td>"
+        rows += f"<td style='padding:8px;border-bottom:1px solid #1e293b;color:#e2e8f0;font-weight:600;text-align:center;'>{r['score']}</td>"
+        rows += f"<td style='padding:8px;border-bottom:1px solid #1e293b;color:{tc};text-align:center;'>{r['ch30']:+.1f}%</td>"
+        rows += f"<td style='padding:8px;border-bottom:1px solid #1e293b;color:#e2e8f0;text-align:center;'>{r['rsi']:.0f}</td>"
+        rows += f"<td style='padding:8px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:center;'>{r['vol_ratio']:.2f}x</td>"
+        rows += f"<td style='padding:8px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:center;'>{r['dist_res_pct']:+.2f}%</td>"
+        rows += f"</tr>"
+
+    return f"""<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>FTSE MIB — Watchlist Kronos</title></head>
+<body style="margin:0;padding:0;background:#0f172a;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;line-height:1.4;">
+<div style="width:100%;padding:0;margin:0;">
+
+<div style="background:linear-gradient(135deg,#0b1120,#1e293b);padding:24px 20px 18px;text-align:center;">
+  <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1.2px;">Kronos Screening \u2022 {now_dmy}</div>
+  <h1 style="font-size:20px;font-weight:700;color:#d4a853;margin:6px 0;">FTSE MIB — Watchlist</h1>
+  <div style="font-size:12px;color:#94a3b8;">{len(results)} titoli analizzati \u2022 Ordinati per Score</div>
+</div>
+
+<div style="padding:10px;">
+<table style="width:100%;border-collapse:collapse;font-size:11px;">
+<thead><tr style="background:#1e293b;">
+<th style="padding:8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #334155;text-align:left;">Nome</th>
+<th style="padding:8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #334155;text-align:left;">Ticker</th>
+<th style="padding:8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #334155;text-align:left;">Prezzo</th>
+<th style="padding:8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #334155;text-align:center;">Segnale</th>
+<th style="padding:8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #334155;text-align:center;">Score</th>
+<th style="padding:8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #334155;text-align:center;">30gg</th>
+<th style="padding:8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #334155;text-align:center;">RSI</th>
+<th style="padding:8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #334155;text-align:center;">Vol</th>
+<th style="padding:8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #334155;text-align:center;">Dist.Res</th>
+</tr></thead>
+<tbody>{rows}</tbody>
+</table>
+</div>
+
+<div style="text-align:center;padding:14px 0;font-size:10px;color:#64748b;">
+Kronos Quantitative Research \u2022 Capitale 10.000 EUR \u2022 Rischio 1.50% \u2022 SL su EMA(20)
+</div>
+</div></body></html>"""
+
+def main():
+    if len(sys.argv) > 1 and sys.argv[1].upper() != "MIB":
+        ticker = sys.argv[1]
+        print(f"Modalita singola: {ticker}")
+        s = analizza_ticker(ticker)
+        if not s:
+            print("Errore analisi ticker")
+            return
+        print(f"  {s['name']}: {fmt(s['prezzo'])} EUR, Score {s['score']}, {s['action']}")
+
+        df = yf.download(ticker, period="1y", interval="1d", progress=False)
+        df = df.reset_index()
+        df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
+        df = df.rename(columns={'Date':'timestamps','Open':'open','High':'high','Low':'low','Close':'close','Volume':'volume'})
+        df['volume'] = df['volume'].astype(float)
+        df['amount'] = df['close'] * df['volume']
+
+        x_df = df.iloc[-90:].copy()
+        df_input = x_df[['open','high','low','close','volume','amount']].copy()
+        x_ts = pd.Series(pd.to_datetime(x_df['timestamps']).dt.tz_localize(None))
+        y_ts = pd.Series(pd.date_range(start=x_ts.iloc[-1]+timedelta(days=1), periods=14, freq='B'))
+
+        tokenizer = KronosTokenizer.from_pretrained("NeoQuasar/Kronos-Tokenizer-base")
+        model = Kronos.from_pretrained("NeoQuasar/Kronos-base")
+        predictor = KronosPredictor(tokenizer=tokenizer, model=model)
+        pred = predictor.predict(df=df_input, x_timestamp=x_ts, y_timestamp=y_ts, pred_len=14)
+        pred_eur = pred.copy()
+
+        backtest = []
+        for offset in range(14, 0, -1):
+            cut = len(df) - offset
+            if cut < 90: continue
+            x = df.iloc[cut-90:cut].copy()
+            inp = x[['open','high','low','close','volume','amount']].copy()
+            xt = pd.Series(pd.to_datetime(x['timestamps']).dt.tz_localize(None))
+            yt = pd.Series([xt.iloc[-1]+timedelta(days=1)])
+            p = predictor.predict(df=inp, x_timestamp=xt, y_timestamp=yt, pred_len=1)
+            err = (p['close'].iloc[0] - df.iloc[cut]['close']) / df.iloc[cut]['close'] * 100
+            d = df.iloc[cut]['timestamps']
+            backtest.append({'date': str(d.date()) if hasattr(d,'date') else str(d)[:10],
+                            'predetto': p['close'].iloc[0], 'reale': df.iloc[cut]['close'], 'error_pct': err})
+
+        fig = go.Figure()
+        fig.add_trace(go.Candlestick(x=x_ts, open=x_df['open'], high=x_df['high'],
+            low=x_df['low'], close=x_df['close'], name="Storico",
+            increasing_line_color='#22c55e', decreasing_line_color='#ef4444'))
+        fig.add_trace(go.Candlestick(x=y_ts, open=pred['open'], high=pred['high'],
+            low=pred['low'], close=pred['close'], name="Previsione",
+            increasing_line_color='#3b82f6', decreasing_line_color='#8b5cf6'))
+        fig.update_layout(template='none', height=400, margin=dict(l=10,r=10,t=10,b=10),
+            paper_bgcolor='white', plot_bgcolor='white',
+            font=dict(family='Inter,sans-serif', size=11, color='#334155'),
+            hovermode='x unified', legend=dict(orientation='h', y=1.08, x=0, font=dict(size=10)),
+            xaxis_rangeslider_visible=False)
+        fig.update_xaxes(gridcolor='#f1f5f9', zeroline=False)
+        fig.update_yaxes(gridcolor='#f1f5f9', zeroline=False, title='Prezzo (EUR)')
+        img_bytes = fig.to_image(format='png', width=1000, height=400, scale=1)
+
+        html = genera_html_individuale(s, pred_eur, backtest)
+        safe = ticker.replace("=", "").replace("-", "_")
+        with open(f"Report_{safe}.html", "w", encoding="utf-8") as f:
+            f.write(html)
+        invia_email(f"[Kronos Daily] {ticker} \u2022 {s['action']} \u2022 {fmt(s['prezzo'])} EUR", html, img_bytes, ticker)
+        return
+
+    print("=== FTSE MIB SCREENING ===")
+    results = []
+    for ticker in FTSE_MIB:
+        print(f"  Analisi {ticker}...", end="")
+        s = analizza_ticker(ticker)
+        if s:
+            print(f" Score {s['score']} {s['action']}")
+            results.append(s)
+        else:
+            print(" SKIP")
+        import gc; gc.collect()
+
+    results.sort(key=lambda x: x['score'], reverse=True)
+    top = [r for r in results if r['action'] in ("BUY", "READY")]
+
+    print(f"\n=== RISULTATI ===")
+    print(f"  Analizzati: {len(results)} titoli")
+    print(f"  BUY: {sum(1 for r in results if r['action']=='BUY')}")
+    print(f"  READY: {sum(1 for r in results if r['action']=='READY')}")
+    print(f"  NO: {sum(1 for r in results if r['action']=='NO')}")
+    print(f"\n  Top 3:")
+    for r in results[:5]:
+        print(f"    {r['name']:20s} Score {r['score']:3d} {r['action']:5s} {fmt(r['prezzo']):>8s} EUR  RSI {r['rsi']:.0f}  Vol {r['vol_ratio']:.2f}x")
+
+    html_wl = genera_html_watchlist(results)
+    invia_email(f"[Kronos Watchlist] FTSE MIB \u2022 {sum(1 for r in results if r['action']=='BUY')} BUY \u2022 {sum(1 for r in results if r['action']=='READY')} READY", html_wl)
+
+    for s in top:
+        print(f"\n  Report dettagliato: {s['name']} ({s['action']})")
+        try:
+            df = yf.download(s['ticker'], period="1y", interval="1d", progress=False)
+            df = df.reset_index()
+            df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
+            df = df.rename(columns={'Date':'timestamps','Open':'open','High':'high','Low':'low','Close':'close','Volume':'volume'})
+            df['volume'] = df['volume'].astype(float)
+            df['amount'] = df['close'] * df['volume']
+
+            x_df = df.iloc[-90:].copy()
+            df_input = x_df[['open','high','low','close','volume','amount']].copy()
+            x_ts = pd.Series(pd.to_datetime(x_df['timestamps']).dt.tz_localize(None))
+            y_ts = pd.Series(pd.date_range(start=x_ts.iloc[-1]+timedelta(days=1), periods=14, freq='B'))
+
+            tokenizer = KronosTokenizer.from_pretrained("NeoQuasar/Kronos-Tokenizer-base")
+            model = Kronos.from_pretrained("NeoQuasar/Kronos-base")
+            predictor = KronosPredictor(tokenizer=tokenizer, model=model)
+            pred = predictor.predict(df=df_input, x_timestamp=x_ts, y_timestamp=y_ts, pred_len=14)
+
+            backtest = []
+            for offset in range(14, 0, -1):
+                cut = len(df) - offset
+                if cut < 90: continue
+                x = df.iloc[cut-90:cut].copy()
+                inp = x[['open','high','low','close','volume','amount']].copy()
+                xt = pd.Series(pd.to_datetime(x['timestamps']).dt.tz_localize(None))
+                yt = pd.Series([xt.iloc[-1]+timedelta(days=1)])
+                p = predictor.predict(df=inp, x_timestamp=xt, y_timestamp=yt, pred_len=1)
+                err = (p['close'].iloc[0] - df.iloc[cut]['close']) / df.iloc[cut]['close'] * 100
+                d = df.iloc[cut]['timestamps']
+                backtest.append({'date': str(d.date()) if hasattr(d,'date') else str(d)[:10],
+                                'predetto': p['close'].iloc[0], 'reale': df.iloc[cut]['close'], 'error_pct': err})
+
+            fig = go.Figure()
+            fig.add_trace(go.Candlestick(x=x_ts, open=x_df['open'], high=x_df['high'],
+                low=x_df['low'], close=x_df['close'], name="Storico",
+                increasing_line_color='#22c55e', decreasing_line_color='#ef4444'))
+            fig.add_trace(go.Candlestick(x=y_ts, open=pred['open'], high=pred['high'],
+                low=pred['low'], close=pred['close'], name="Previsione",
+                increasing_line_color='#3b82f6', decreasing_line_color='#8b5cf6'))
+            fig.update_layout(template='none', height=400, margin=dict(l=10,r=10,t=10,b=10),
+                paper_bgcolor='white', plot_bgcolor='white',
+                font=dict(family='Inter,sans-serif', size=11, color='#334155'),
+                hovermode='x unified', legend=dict(orientation='h', y=1.08, x=0, font=dict(size=10)),
+                xaxis_rangeslider_visible=False)
+            fig.update_xaxes(gridcolor='#f1f5f9', zeroline=False)
+            fig.update_yaxes(gridcolor='#f1f5f9', zeroline=False, title='Prezzo (EUR)')
+            img_bytes = fig.to_image(format='png', width=1000, height=400, scale=1)
+
+            html = genera_html_individuale(s, pred, backtest)
+            invia_email(f"[Kronos Daily] {s['ticker']} {s['name']} \u2022 {s['action']} \u2022 {fmt(s['prezzo'])} EUR", html, img_bytes, s['ticker'])
+            import gc; gc.collect()
+        except Exception as e:
+            print(f"  Errore report {s['ticker']}: {e}")
+
+    print("\n=== COMPLETATO ===")
 
 if __name__ == "__main__":
     main()

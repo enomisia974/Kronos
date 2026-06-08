@@ -1,4 +1,4 @@
-name: Kronos Report Azioni (08:00 Italia)
+name: Kronos Screening FTSE MIB (08:00 Italia)
 
 on:
   schedule:
@@ -13,11 +13,8 @@ env:
   SMTP_PORT: ${{ secrets.SMTP_PORT }}
 
 jobs:
-  reports:
+  screening:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        ticker: [BAMI.MI, BMPS.MI, ISP.MI, UNI.MI, LDO.MI, GC=F]
     steps:
       - uses: actions/checkout@v4
 
@@ -31,13 +28,5 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Report ${{ matrix.ticker }}
-        run: python report_azioni.py ${{ matrix.ticker }}
-
-      - name: Upload ${{ matrix.ticker }}
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: report-${{ matrix.ticker }}
-          path: Report_${{ matrix.ticker }}.html
-          retention-days: 7
+      - name: Screening FTSE MIB
+        run: python report_azioni.py MIB
