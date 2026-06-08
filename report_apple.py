@@ -113,7 +113,7 @@ def main():
             .grid {{ display: flex; flex-direction: column; gap: 30px; }}
             .card {{ background: #1c2030; padding: 20px; border-radius: 8px; border: 1px solid #2a2e39; }}
             table {{ width: 100%; border-collapse: collapse; text-align: left; margin-top: 10px; }}
-            th {{ background-color: #2a2e39; color: #h1h1h1; padding: 12px; font-weight: 600; }}
+            th {{ background-color: #2a2e39; color: #d1d4dc; padding: 12px; font-weight: 600; }}
             .footer {{ text-align: center; margin-top: 40px; font-size: 0.85em; color: #787b86; }}
         </style>
     </head>
@@ -129,14 +129,14 @@ def main():
                 
                 <div class="card">
                     <h3 style="margin-top:0; color: #ffffff;">Tabella Output Predittivo (Prossimi {steps_da_prevedere} Giorni)</h3>
-                    <table>
+                     <table>
                         <thead>
                             <tr>
-                                <th>Data Target</th>
-                                <th>Apertura Prevista (Open)</th>
-                                <th>Massimo Previsto (High)</th>
-                                <th>Minimo Previsto (Low)</th>
-                                <th>Chiusura Prevista (Close)</th>
+                                <th style="color: #d1d4dc;">Data Target</th>
+                                <th style="color: #26a69a;">Apertura Prevista (Open)</th>
+                                <th style="color: #26a69a;">Massimo Previsto (High)</th>
+                                <th style="color: #ef5350;">Minimo Previsto (Low)</th>
+                                <th style="color: #ab47bc;">Chiusura Prevista (Close)</th>
                             </tr>
                         </thead>
                         <tbody>
