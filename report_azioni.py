@@ -207,8 +207,7 @@ def main():
         d = str(idx.date()) if hasattr(idx, 'date') else str(idx)[:10]
         dl = row['close'] - row['open']
         dc = "#22c55e" if dl >= 0 else "#ef4444"
-        ds = "+" if dl >= 0 else ""
-        tab_pred += f"<tr><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{d}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(row['open'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(row['high'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(row['low'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;font-weight:600;'>{fmt(row['close'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:{dc};font-weight:600;'>{ds}{dl:+,.2f}</td></tr>"
+        tab_pred += f"<tr><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{d}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(row['open'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(row['high'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;'>{fmt(row['low'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:#334155;font-weight:600;'>{fmt(row['close'], ticker)}</td><td style='padding:7px 6px;border-bottom:1px solid #f1f5f9;color:{dc};font-weight:600;'>{dl:+,.2f}</td></tr>"
 
     if action in ("BUY", "SELL"):
         segnale_box = f"""<div style="background:#fff;border-radius:8px;border:2px solid {action_col};overflow:hidden;margin-bottom:10px;padding:14px;">
