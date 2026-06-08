@@ -6,8 +6,7 @@ import yfinance as yf
 import plotly.graph_objects as go
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
+
 from model import Kronos, KronosTokenizer, KronosPredictor
 
 def main():
@@ -169,19 +168,16 @@ def main():
     smtp_to = os.environ.get("SMTP_TO", "enomisia974@gmail.com")
 
     if smtp_password:
-        msg = MIMEMultipart()
+        msg = MIMEMultipart('alternative')
         msg['From'] = smtp_user
         msg['To'] = smtp_to
         msg['Subject'] = f"Report Previsioni Kronos - {ticker}"
 
-        text_part = MIMEText(f"Report previsioni Kronos per {ticker} in allegato.", 'plain')
+        text_part = MIMEText(f"Report previsioni Kronos per {ticker}. Se non vedi il contenuto, apri questa email in un client che supporta HTML.", 'plain')
         msg.attach(text_part)
 
-        att = MIMEBase('application', 'octet-stream')
-        att.set_payload(html_content.encode('utf-8'))
-        encoders.encode_base64(att)
-        att.add_header('Content-Disposition', f'attachment; filename={output_filename}')
-        msg.attach(att)
+        html_part = MIMEText(html_content, 'html')
+        msg.attach(html_part)
 
         s = smtplib.SMTP(smtp_server, smtp_port)
         s.starttls()
