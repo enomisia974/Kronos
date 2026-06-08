@@ -1,4 +1,4 @@
-import os, smtplib, sys, io
+import os, smtplib, sys, io, gc, base64
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 load_dotenv()
@@ -11,13 +11,13 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from model import Kronos, KronosTokenizer, KronosPredictor
 
-FTSE_MIB = [
+FTSE_MIB = (
     "A2A.MI","AMP.MI","AZM.MI","BGN.MI","BMED.MI","BMPS.MI","BAMI.MI","BPE.MI",
     "BC.MI","CPR.MI","DIA.MI","ENEL.MI","ENI.MI","ERG.MI","FBK.MI","G.MI",
     "HER.MI","IG.MI","IP.MI","ISP.MI","IVG.MI","LDO.MI","MB.MI","MONC.MI",
     "NEXI.MI","PIRC.MI","PST.MI","PRY.MI","RACE.MI","REC.MI","SPM.MI","SRG.MI",
     "STLAM.MI","STM.MI","TEN.MI","TIT.MI","TRN.MI","UCG.MI","UNI.MI","US.MI",
-]
+)
 
 ASSET_NAMES = {
     "A2A.MI":"A2A","AMP.MI":"Amplifon","AZM.MI":"Azimut","BGN.MI":"B.Generali",
@@ -56,17 +56,40 @@ def fmt(v):
         return f"{v:,.0f}"
     return f"{v:,.2f}"
 
-def analizza_ticker(ticker):
-    try:
-        df = yf.download(ticker, period="1y", interval="1d", progress=False)
-        if df.empty:
+def scarica_batch(tickers):
+    raw = yf.download(list(tickers), period="1y", interval="1d", progress=False, group_by='ticker')
+    result = {}
+    for t in tickers:
+        try:
+            if len(tickers) == 1:
+                df = raw.copy()
+            else:
+                df = raw[t].copy()
+            if df.empty:
+                continue
+            df = df.reset_index()
+            df.columns = [c[0] if isinstance(c, tuple) else c for c in df.columns]
+            df = df.rename(columns={'Date':'timestamps','Open':'open','High':'high','Low':'low','Close':'close','Volume':'volume'})
+            df['volume'] = df['volume'].astype(float)
+            numeric_cols = ['open','high','low','close','volume']
+            df[numeric_cols] = df[numeric_cols].ffill().bfill()
+            result[t] = df
+        except:
+            continue
+    return result
+
+def analizza_ticker(ticker, df=None):
+    if df is None:
+        try:
+            df = yf.download(ticker, period="1y", interval="1d", progress=False)
+            if df.empty:
+                return None
+            df = df.reset_index()
+            df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
+            df = df.rename(columns={'Date':'timestamps','Open':'open','High':'high','Low':'low','Close':'close','Volume':'volume'})
+            df['volume'] = df['volume'].astype(float)
+        except:
             return None
-        df = df.reset_index()
-        df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
-        df = df.rename(columns={'Date':'timestamps','Open':'open','High':'high','Low':'low','Close':'close','Volume':'volume'})
-        df['volume'] = df['volume'].astype(float)
-    except:
-        return None
 
     if len(df) < 60:
         return None
@@ -304,6 +327,111 @@ Kronos Quantitative Research \u2022 Capitale 10.000 EUR \u2022 Rischio 1.50% \u2
 </div>
 </div></body></html>"""
 
+def genera_html_riepilogo(results, top_data):
+    now = datetime.now()
+    now_dmy = now.strftime("%d/%m/%Y")
+    bux = sum(1 for r in results if r['action']=='BUY')
+    rdy = sum(1 for r in results if r['action']=='READY')
+
+    watch_rows = ""
+    for r in results:
+        ac = "#22c55e" if r['action'] == "BUY" else "#f59e0b" if r['action'] == "READY" else "#64748b"
+        bg = "#052e16" if r['action'] == "BUY" else "#1c1917" if r['action'] == "READY" else "#0f172a"
+        tc = "#22c55e" if r['ch30'] >= 0 else "#ef4444"
+        watch_rows += f"<tr style='background:{bg};'>"
+        watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#e2e8f0;font-weight:600;font-size:11px;'>{r['name']}</td>"
+        watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#94a3b8;font-size:11px;'>{r['ticker'].replace('.MI','')}</td>"
+        watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#e2e8f0;font-size:11px;'>{fmt(r['prezzo'])}</td>"
+        watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;text-align:center;font-size:11px;'><div style='background:{ac};color:#fff;font-weight:700;font-size:10px;padding:1px 6px;border-radius:3px;text-align:center;display:inline-block;'>{r['action']}</div></td>"
+        watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#e2e8f0;font-weight:600;text-align:center;font-size:11px;'>{r['score']}</td>"
+        watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:{tc};text-align:right;font-size:11px;'>{r['ch30']:+.1f}%</td>"
+        watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:center;font-size:11px;'>{r['rsi']:.0f}</td>"
+        watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:right;font-size:11px;'>{r['dist_res_pct']:+.2f}%</td>"
+        watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:right;font-size:11px;'>{fmt(r['sl_ema20'])}</td>"
+        watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#e2e8f0;text-align:right;font-size:11px;'>{r['size_quote']}</td>"
+        watch_rows += f"</tr>"
+
+    detail_blocks = ""
+    for td in top_data:
+        s, pred, backtest, img_b64 = td['s'], td['pred'], td['backtest'], td['img_b64']
+        el = "#22c55e" if s['action'] == "BUY" else "#f59e0b"
+        mae_val = abs(np.mean([b['error_pct'] for b in backtest])) if backtest else 0
+        pred_last = pred['close'].iloc[-1] if pred is not None and not pred.empty else s['prezzo']
+        pred_var = (pred_last - s['prezzo']) / s['prezzo'] * 100
+        f_ok = sum(1 for _, ok in s['filters'] if ok)
+        f_tot = len(s['filters'])
+        detail_blocks += f"""
+<div style="background:linear-gradient(135deg,#0b1120,#1e293b);padding:12px 14px;border-radius:6px;margin-bottom:10px;">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+    <div style="background:{el};color:#fff;font-weight:700;font-size:13px;padding:3px 10px;border-radius:3px;">{s['action']}</div>
+    <div style="font-size:14px;font-weight:700;color:#d4a853;">{s['name']}</div>
+    <div style="font-size:12px;color:#94a3b8;">{s['ticker'].replace('.MI','')}</div>
+    <div style="margin-left:auto;font-size:12px;color:#e2e8f0;">Score <b>{s['score']}</b></div>
+  </div>
+  <table style="width:100%;font-size:11px;border-collapse:collapse;">
+    <tr>
+      <td style="padding:2px 4px;color:#64748b;">Entrata</td>
+      <td style="padding:2px 4px;color:#e2e8f0;font-weight:600;">{fmt(s['prezzo'])}</td>
+      <td style="padding:2px 4px;color:#64748b;">SL</td>
+      <td style="padding:2px 4px;color:#ef4444;font-weight:600;">{fmt(s['sl_ema20'])}</td>
+      <td style="padding:2px 4px;color:#64748b;">Size</td>
+      <td style="padding:2px 4px;color:#e2e8f0;">{s['size_quote']} az.</td>
+      <td style="padding:2px 4px;color:#64748b;">RSI</td>
+      <td style="padding:2px 4px;color:#e2e8f0;">{s['rsi']:.0f}</td>
+      <td style="padding:2px 4px;color:#64748b;">Res</td>
+      <td style="padding:2px 4px;color:#e2e8f0;">{s['dist_res_pct']:+.1f}%</td>
+      <td style="padding:2px 4px;color:#64748b;">Filtri</td>
+      <td style="padding:2px 4px;color:#22c55e;">{f_ok}/{f_tot}</td>
+      <td style="padding:2px 4px;color:#64748b;">MAE</td>
+      <td style="padding:2px 4px;color:#e2e8f0;">{mae_val:.2f}%</td>
+      <td style="padding:2px 4px;color:#64748b;">AI 14gg</td>
+      <td style="padding:2px 4px;color:#22c55e if pred_var>=0 else '#ef4444';">{pred_var:+.1f}%</td>
+    </tr>
+  </table>
+  <div style="margin-top:6px;text-align:center;"><img src="data:image/png;base64,{img_b64}" style="max-width:100%;height:auto;border-radius:4px;" alt="{s['ticker']}"/></div>
+</div>"""
+
+    return f"""<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>FTSE MIB Top 10 — Kronos</title></head>
+<body style="margin:0;padding:0;background:#0b1120;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;line-height:1.4;">
+<div style="max-width:680px;margin:0 auto;padding:0;">
+
+<div style="background:linear-gradient(135deg,#0b1120,#1e293b);padding:22px 18px;text-align:center;border-bottom:2px solid #d4a853;">
+  <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1.2px;">Kronos Quantitative Research \u2022 {now_dmy}</div>
+  <h1 style="font-size:22px;font-weight:700;color:#d4a853;margin:4px 0;">FTSE MIB — Top Picks</h1>
+  <div style="font-size:12px;color:#94a3b8;">{len(results)} titoli analizzati | {bux} BUY | {rdy} READY | {len(top_data)} migliori selezionati</div>
+</div>
+
+<div style="padding:12px;">
+  <div style="font-size:13px;font-weight:700;color:#d4a853;margin-bottom:6px;">Watchlist Completa</div>
+  <div style="overflow-x:auto;">
+  <table style="width:100%;border-collapse:collapse;">
+  <thead><tr style="background:#1e293b;">
+    <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:left;">Nome</th>
+    <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:left;">Tkr</th>
+    <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:left;">Prezzo</th>
+    <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:center;">Segn</th>
+    <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:center;">Scr</th>
+    <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:right;">30gg</th>
+    <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:center;">RSI</th>
+    <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:right;">Res</th>
+    <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:right;">SL</th>
+    <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:right;">Size</th>
+  </tr></thead>
+  <tbody>{watch_rows}</tbody>
+  </table>
+  </div>
+</div>
+
+<div style="padding:0 12px 12px;">
+  <div style="font-size:13px;font-weight:700;color:#d4a853;margin-bottom:6px;">Analisi Dettaglio — Top {len(top_data)}</div>
+  {detail_blocks}
+</div>
+
+<div style="text-align:center;padding:14px;font-size:10px;color:#475569;border-top:1px solid #1e293b;">
+Kronos Quantitative Research \u2022 Capitale 10.000 EUR \u2022 Rischio 1.50% \u2022 SL su EMA(20)<br>
+Dati: Yahoo Finance \u2022 Modello AI: Kronos-base</div>
+</div></body></html>"""
+
 def main():
     if len(sys.argv) > 1 and sys.argv[1].upper() != "MIB":
         ticker = sys.argv[1]
@@ -370,56 +498,63 @@ def main():
         return
 
     print("=== FTSE MIB SCREENING ===")
+
+    print("Download dati in batch...")
+    all_data = scarica_batch(FTSE_MIB)
+    print(f"  Scaricati {len(all_data)}/{len(FTSE_MIB)} ticker")
+
     results = []
     for ticker in FTSE_MIB:
-        print(f"  Analisi {ticker}...", end="")
-        s = analizza_ticker(ticker)
+        if ticker not in all_data:
+            continue
+        s = analizza_ticker(ticker, df=all_data[ticker])
         if s:
-            print(f" Score {s['score']} {s['action']}")
+            print(f"  {ticker}: Score {s['score']} {s['action']}")
             results.append(s)
-        else:
-            print(" SKIP")
-        import gc; gc.collect()
 
     results.sort(key=lambda x: x['score'], reverse=True)
     top = [r for r in results if r['action'] in ("BUY", "READY")]
 
-    print(f"\n=== RISULTATI ===")
-    print(f"  Analizzati: {len(results)} titoli")
-    print(f"  BUY: {sum(1 for r in results if r['action']=='BUY')}")
-    print(f"  READY: {sum(1 for r in results if r['action']=='READY')}")
-    print(f"  NO: {sum(1 for r in results if r['action']=='NO')}")
-    print(f"\n  Top 3:")
+    bux = sum(1 for r in results if r['action']=='BUY')
+    rdy = sum(1 for r in results if r['action']=='READY')
+    print(f"\n=== RISULTATI: {len(results)} titoli, {bux} BUY, {rdy} READY, {len(results)-bux-rdy} NO ===")
     for r in results[:5]:
-        print(f"    {r['name']:20s} Score {r['score']:3d} {r['action']:5s} {fmt(r['prezzo']):>8s} EUR  RSI {r['rsi']:.0f}  Vol {r['vol_ratio']:.2f}x")
+        print(f"    {r['name']:20s} Score {r['score']:3d} {r['action']:5s} {fmt(r['prezzo']):>8s} EUR")
 
     html_wl = genera_html_watchlist(results)
-    invia_email(f"[Kronos Watchlist] FTSE MIB \u2022 {sum(1 for r in results if r['action']=='BUY')} BUY \u2022 {sum(1 for r in results if r['action']=='READY')} READY", html_wl)
+    invia_email(f"[Kronos Watchlist] FTSE MIB \u2022 {bux} BUY \u2022 {rdy} READY", html_wl)
 
-    for s in top:
-        print(f"\n  Report dettagliato: {s['name']} ({s['action']})")
+    if not top:
+        print("\nNessun segnale BUY/READY, invio solo watchlist.")
+        print("\n=== COMPLETATO ===")
+        return
+
+    top_n = min(len(top), 10)
+    print(f"\nCarico modello Kronos per top {top_n}...")
+    tokenizer = KronosTokenizer.from_pretrained("NeoQuasar/Kronos-Tokenizer-base")
+    model = Kronos.from_pretrained("NeoQuasar/Kronos-base")
+    predictor = KronosPredictor(tokenizer=tokenizer, model=model)
+
+    top_data = []
+    for s in top[:top_n]:
+        print(f"\n  Elaborazione: {s['name']} ({s['action']}, Score {s['score']})")
         try:
-            df = yf.download(s['ticker'], period="1y", interval="1d", progress=False)
-            df = df.reset_index()
-            df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
-            df = df.rename(columns={'Date':'timestamps','Open':'open','High':'high','Low':'low','Close':'close','Volume':'volume'})
-            df['volume'] = df['volume'].astype(float)
-            df['amount'] = df['close'] * df['volume']
+            df = all_data[s['ticker']].copy()
+            df['amount'] = df['close'].fillna(0) * df['volume'].fillna(0)
+            df = df.ffill().bfill().fillna(0)
 
             x_df = df.iloc[-90:].copy()
             df_input = x_df[['open','high','low','close','volume','amount']].copy()
             x_ts = pd.Series(pd.to_datetime(x_df['timestamps']).dt.tz_localize(None))
             y_ts = pd.Series(pd.date_range(start=x_ts.iloc[-1]+timedelta(days=1), periods=14, freq='B'))
 
-            tokenizer = KronosTokenizer.from_pretrained("NeoQuasar/Kronos-Tokenizer-base")
-            model = Kronos.from_pretrained("NeoQuasar/Kronos-base")
-            predictor = KronosPredictor(tokenizer=tokenizer, model=model)
             pred = predictor.predict(df=df_input, x_timestamp=x_ts, y_timestamp=y_ts, pred_len=14)
 
             backtest = []
             for offset in range(14, 0, -1):
                 cut = len(df) - offset
-                if cut < 90: continue
+                if cut < 90:
+                    continue
                 x = df.iloc[cut-90:cut].copy()
                 inp = x[['open','high','low','close','volume','amount']].copy()
                 xt = pd.Series(pd.to_datetime(x['timestamps']).dt.tz_localize(None))
@@ -437,20 +572,25 @@ def main():
             fig.add_trace(go.Candlestick(x=y_ts, open=pred['open'], high=pred['high'],
                 low=pred['low'], close=pred['close'], name="Previsione",
                 increasing_line_color='#3b82f6', decreasing_line_color='#8b5cf6'))
-            fig.update_layout(template='none', height=400, margin=dict(l=10,r=10,t=10,b=10),
+            fig.update_layout(template='none', height=200, margin=dict(l=6,r=6,t=6,b=6),
                 paper_bgcolor='white', plot_bgcolor='white',
-                font=dict(family='Inter,sans-serif', size=11, color='#334155'),
-                hovermode='x unified', legend=dict(orientation='h', y=1.08, x=0, font=dict(size=10)),
+                font=dict(family='Inter,sans-serif', size=8, color='#334155'),
+                hovermode='x unified', showlegend=False,
                 xaxis_rangeslider_visible=False)
-            fig.update_xaxes(gridcolor='#f1f5f9', zeroline=False)
-            fig.update_yaxes(gridcolor='#f1f5f9', zeroline=False, title='Prezzo (EUR)')
-            img_bytes = fig.to_image(format='png', width=1000, height=400, scale=1)
+            fig.update_xaxes(gridcolor='#f1f5f9', zeroline=False, visible=False)
+            fig.update_yaxes(gridcolor='#f1f5f9', zeroline=False, title='', visible=False)
+            img_bytes = fig.to_image(format='png', width=600, height=200, scale=1)
+            img_b64 = base64.b64encode(img_bytes).decode('utf-8')
 
-            html = genera_html_individuale(s, pred, backtest)
-            invia_email(f"[Kronos Daily] {s['ticker']} {s['name']} \u2022 {s['action']} \u2022 {fmt(s['prezzo'])} EUR", html, img_bytes, s['ticker'])
-            import gc; gc.collect()
+            top_data.append({'s': s, 'pred': pred, 'backtest': backtest, 'img_b64': img_b64})
+            gc.collect()
         except Exception as e:
-            print(f"  Errore report {s['ticker']}: {e}")
+            print(f"  Errore {s['ticker']}: {e}")
+
+    if top_data:
+        html = genera_html_riepilogo(results, top_data)
+        invia_email(f"[Kronos Top 10] FTSE MIB \u2022 {bux} BUY \u2022 {rdy} READY", html)
+        print(f"\nRiepilogo top {len(top_data)} inviato.")
 
     print("\n=== COMPLETATO ===")
 
