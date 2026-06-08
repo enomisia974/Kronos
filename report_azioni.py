@@ -154,6 +154,9 @@ def analizza_ticker(ticker, df=None):
     dist_sl_pct = abs(p - sl) / p if p != sl else 0.01
     size_quote = perdita_max / (abs(p - sl)) if abs(p - sl) > 0 else 0
     size_eur = size_quote * p
+    rischio_eur = perdita_max
+    tp = p + (p - sl) * 2 if p != sl else p * 1.03
+    tp_potenziale = (tp - p) / p * 100
 
     return {
         'ticker': ticker, 'name': ASSET_NAMES.get(ticker, ticker), 'prezzo': p,
@@ -164,6 +167,7 @@ def analizza_ticker(ticker, df=None):
         'score': score, 'action': action, 'filters': filters,
         'sl_ema20': sl, 'dist_sl_pct': dist_sl_pct * 100,
         'size_quote': int(size_quote), 'size_eur': size_eur,
+        'tp': tp, 'tp_potenziale': tp_potenziale, 'rischio_eur': rischio_eur,
     }
 
 def invia_email(subject, html_body, img_bytes=None, ticker=""):
@@ -284,15 +288,18 @@ def genera_html_watchlist(results):
         bg = "#052e16" if r['action'] == "BUY" else "#1c1917" if r['action'] == "READY" else "#0f172a"
         tc = "#22c55e" if r['ch30'] >= 0 else "#ef4444"
         rows += f"<tr style='background:{bg};'>"
-        rows += f"<td style='padding:8px;border-bottom:1px solid #1e293b;color:#e2e8f0;font-weight:600;'>{r['name']}</td>"
-        rows += f"<td style='padding:8px;border-bottom:1px solid #1e293b;color:#e2e8f0;'>{r['ticker']}</td>"
-        rows += f"<td style='padding:8px;border-bottom:1px solid #1e293b;color:#e2e8f0;'>{fmt(r['prezzo'])}</td>"
-        rows += f"<td style='padding:8px;border-bottom:1px solid #1e293b;'><div style='background:{ac};color:#fff;font-weight:700;font-size:11px;padding:2px 8px;border-radius:3px;text-align:center;display:inline-block;'>{r['action']}</div></td>"
-        rows += f"<td style='padding:8px;border-bottom:1px solid #1e293b;color:#e2e8f0;font-weight:600;text-align:center;'>{r['score']}</td>"
-        rows += f"<td style='padding:8px;border-bottom:1px solid #1e293b;color:{tc};text-align:center;'>{r['ch30']:+.1f}%</td>"
-        rows += f"<td style='padding:8px;border-bottom:1px solid #1e293b;color:#e2e8f0;text-align:center;'>{r['rsi']:.0f}</td>"
-        rows += f"<td style='padding:8px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:center;'>{r['vol_ratio']:.2f}x</td>"
-        rows += f"<td style='padding:8px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:center;'>{r['dist_res_pct']:+.2f}%</td>"
+        rows += f"<td style='padding:6px;border-bottom:1px solid #1e293b;color:#e2e8f0;font-weight:600;font-size:12px;'>{r['name']}</td>"
+        rows += f"<td style='padding:6px;border-bottom:1px solid #1e293b;color:#94a3b8;font-size:12px;'>{r['ticker'].replace('.MI','')}</td>"
+        rows += f"<td style='padding:6px;border-bottom:1px solid #1e293b;color:#e2e8f0;font-size:12px;'>{fmt(r['prezzo'])}</td>"
+        rows += f"<td style='padding:6px;border-bottom:1px solid #1e293b;text-align:center;'><div style='background:{ac};color:#fff;font-weight:700;font-size:10px;padding:1px 7px;border-radius:3px;text-align:center;display:inline-block;'>{r['action']}</div></td>"
+        rows += f"<td style='padding:6px;border-bottom:1px solid #1e293b;color:#e2e8f0;font-weight:600;text-align:center;font-size:12px;'>{r['score']}</td>"
+        rows += f"<td style='padding:6px;border-bottom:1px solid #1e293b;color:#ef4444;text-align:right;font-size:12px;'>{fmt(r['sl_ema20'])}</td>"
+        rows += f"<td style='padding:6px;border-bottom:1px solid #1e293b;color:#22c55e;text-align:right;font-size:12px;font-weight:600;'>{fmt(r['tp'])}</td>"
+        rows += f"<td style='padding:6px;border-bottom:1px solid #1e293b;color:#e2e8f0;text-align:right;font-size:12px;'>{r['size_quote']}</td>"
+        rows += f"<td style='padding:6px;border-bottom:1px solid #1e293b;color:#ef4444;text-align:right;font-size:12px;'>{fmt(r['rischio_eur'])}</td>"
+        rows += f"<td style='padding:6px;border-bottom:1px solid #1e293b;color:#22c55e;text-align:right;font-size:12px;'>{r['tp_potenziale']:+.1f}%</td>"
+        rows += f"<td style='padding:6px;border-bottom:1px solid #1e293b;color:{tc};text-align:right;font-size:12px;'>{r['ch30']:+.1f}%</td>"
+        rows += f"<td style='padding:6px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:center;font-size:12px;'>{r['rsi']:.0f}</td>"
         rows += f"</tr>"
 
     return f"""<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>FTSE MIB — Watchlist Kronos</title></head>
@@ -302,28 +309,31 @@ def genera_html_watchlist(results):
 <div style="background:linear-gradient(135deg,#0b1120,#1e293b);padding:24px 20px 18px;text-align:center;">
   <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:1.2px;">Kronos Screening \u2022 {now_dmy}</div>
   <h1 style="font-size:20px;font-weight:700;color:#d4a853;margin:6px 0;">FTSE MIB — Watchlist</h1>
-  <div style="font-size:12px;color:#94a3b8;">{len(results)} titoli analizzati \u2022 Ordinati per Score</div>
+  <div style="font-size:12px;color:#94a3b8;">{len(results)} titoli analizzati \u2022 Score: EMA Trend + VCP + Resistenza</div>
 </div>
 
-<div style="padding:10px;">
+<div style="padding:10px;overflow-x:auto;">
 <table style="width:100%;border-collapse:collapse;font-size:11px;">
 <thead><tr style="background:#1e293b;">
-<th style="padding:8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #334155;text-align:left;">Nome</th>
-<th style="padding:8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #334155;text-align:left;">Ticker</th>
-<th style="padding:8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #334155;text-align:left;">Prezzo</th>
-<th style="padding:8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #334155;text-align:center;">Segnale</th>
-<th style="padding:8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #334155;text-align:center;">Score</th>
-<th style="padding:8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #334155;text-align:center;">30gg</th>
-<th style="padding:8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #334155;text-align:center;">RSI</th>
-<th style="padding:8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #334155;text-align:center;">Vol</th>
-<th style="padding:8px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.6px;border-bottom:2px solid #334155;text-align:center;">Dist.Res</th>
+<th style="padding:6px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:2px solid #334155;text-align:left;">Nome</th>
+<th style="padding:6px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:2px solid #334155;text-align:left;">Tkr</th>
+<th style="padding:6px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:2px solid #334155;text-align:left;">Acquisto</th>
+<th style="padding:6px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:2px solid #334155;text-align:center;">Segn</th>
+<th style="padding:6px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:2px solid #334155;text-align:center;">Scr</th>
+<th style="padding:6px;color:#ef4444;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:2px solid #334155;text-align:right;">SL</th>
+<th style="padding:6px;color:#22c55e;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:2px solid #334155;text-align:right;">Vendita</th>
+<th style="padding:6px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:2px solid #334155;text-align:right;">Azioni</th>
+<th style="padding:6px;color:#ef4444;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:2px solid #334155;text-align:right;">Rischio</th>
+<th style="padding:6px;color:#22c55e;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:2px solid #334155;text-align:right;">TP%</th>
+<th style="padding:6px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:2px solid #334155;text-align:right;">30gg</th>
+<th style="padding:6px;color:#64748b;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:2px solid #334155;text-align:center;">RSI</th>
 </tr></thead>
 <tbody>{rows}</tbody>
 </table>
 </div>
 
 <div style="text-align:center;padding:14px 0;font-size:10px;color:#64748b;">
-Kronos Quantitative Research \u2022 Capitale 10.000 EUR \u2022 Rischio 1.50% \u2022 SL su EMA(20)
+Kronos Quantitative Research \u2022 Capitale 10.000 EUR \u2022 Rischio 1.50% \u2022 SL su EMA(20) \u2022 Vendita: 2× rischio
 </div>
 </div></body></html>"""
 
@@ -344,11 +354,13 @@ def genera_html_riepilogo(results, top_data):
         watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#e2e8f0;font-size:11px;'>{fmt(r['prezzo'])}</td>"
         watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;text-align:center;font-size:11px;'><div style='background:{ac};color:#fff;font-weight:700;font-size:10px;padding:1px 6px;border-radius:3px;text-align:center;display:inline-block;'>{r['action']}</div></td>"
         watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#e2e8f0;font-weight:600;text-align:center;font-size:11px;'>{r['score']}</td>"
+        watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:right;font-size:11px;'>{fmt(r['sl_ema20'])}</td>"
+        watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#22c55e;text-align:right;font-size:11px;font-weight:600;'>{fmt(r['tp'])}</td>"
+        watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#e2e8f0;text-align:right;font-size:11px;'>{r['size_quote']} ({fmt(r['size_eur'])})</td>"
+        watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#ef4444;text-align:right;font-size:11px;'>{fmt(r['rischio_eur'])}</td>"
+        watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#22c55e;text-align:right;font-size:11px;'>{r['tp_potenziale']:+.1f}%</td>"
         watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:{tc};text-align:right;font-size:11px;'>{r['ch30']:+.1f}%</td>"
         watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:center;font-size:11px;'>{r['rsi']:.0f}</td>"
-        watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:right;font-size:11px;'>{r['dist_res_pct']:+.2f}%</td>"
-        watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#94a3b8;text-align:right;font-size:11px;'>{fmt(r['sl_ema20'])}</td>"
-        watch_rows += f"<td style='padding:5px 6px;border-bottom:1px solid #1e293b;color:#e2e8f0;text-align:right;font-size:11px;'>{r['size_quote']}</td>"
         watch_rows += f"</tr>"
 
     detail_blocks = ""
@@ -370,22 +382,36 @@ def genera_html_riepilogo(results, top_data):
   </div>
   <table style="width:100%;font-size:11px;border-collapse:collapse;">
     <tr>
-      <td style="padding:2px 4px;color:#64748b;">Entrata</td>
-      <td style="padding:2px 4px;color:#e2e8f0;font-weight:600;">{fmt(s['prezzo'])}</td>
-      <td style="padding:2px 4px;color:#64748b;">SL</td>
-      <td style="padding:2px 4px;color:#ef4444;font-weight:600;">{fmt(s['sl_ema20'])}</td>
-      <td style="padding:2px 4px;color:#64748b;">Size</td>
-      <td style="padding:2px 4px;color:#e2e8f0;">{s['size_quote']} az.</td>
+      <td style="padding:2px 4px;color:#64748b;">Acquisto</td>
+      <td style="padding:2px 4px;color:#e2e8f0;font-weight:600;">{fmt(s['prezzo'])} €</td>
+      <td style="padding:2px 8px;color:#64748b;text-align:right;">Stop Loss</td>
+      <td style="padding:2px 4px;color:#ef4444;font-weight:600;">{fmt(s['sl_ema20'])} €</td>
+      <td style="padding:2px 8px;color:#64748b;text-align:right;">Vendita</td>
+      <td style="padding:2px 4px;color:#22c55e;font-weight:600;">{fmt(s['tp'])} €</td>
+      <td style="padding:2px 8px;color:#64748b;text-align:right;">R:R</td>
+      <td style="padding:2px 4px;color:#e2e8f0;">1:2</td>
+    </tr>
+    <tr>
+      <td style="padding:2px 4px;color:#64748b;">Azioni</td>
+      <td style="padding:2px 4px;color:#e2e8f0;font-weight:600;">{s['size_quote']}</td>
+      <td style="padding:2px 8px;color:#64748b;text-align:right;">Esposizione</td>
+      <td style="padding:2px 4px;color:#e2e8f0;font-weight:600;">{fmt(s['size_eur'])} €</td>
+      <td style="padding:2px 8px;color:#64748b;text-align:right;">Max Perdita</td>
+      <td style="padding:2px 4px;color:#ef4444;font-weight:600;">{fmt(s['rischio_eur'])} €</td>
+      <td style="padding:2px 8px;color:#64748b;text-align:right;">Max Guadagno</td>
+      <td style="padding:2px 4px;color:#22c55e;font-weight:600;">{fmt(s['rischio_eur']*2)} €</td>
+    </tr>
+    <tr>
       <td style="padding:2px 4px;color:#64748b;">RSI</td>
       <td style="padding:2px 4px;color:#e2e8f0;">{s['rsi']:.0f}</td>
-      <td style="padding:2px 4px;color:#64748b;">Res</td>
+      <td style="padding:2px 8px;color:#64748b;text-align:right;">Resistenza</td>
       <td style="padding:2px 4px;color:#e2e8f0;">{s['dist_res_pct']:+.1f}%</td>
-      <td style="padding:2px 4px;color:#64748b;">Filtri</td>
+      <td style="padding:2px 8px;color:#64748b;text-align:right;">Filtri</td>
       <td style="padding:2px 4px;color:#22c55e;">{f_ok}/{f_tot}</td>
-      <td style="padding:2px 4px;color:#64748b;">MAE</td>
+      <td style="padding:2px 8px;color:#64748b;text-align:right;">MAE</td>
       <td style="padding:2px 4px;color:#e2e8f0;">{mae_val:.2f}%</td>
-      <td style="padding:2px 4px;color:#64748b;">AI 14gg</td>
-      <td style="padding:2px 4px;color:#22c55e if pred_var>=0 else '#ef4444';">{pred_var:+.1f}%</td>
+      <td style="padding:2px 8px;color:#64748b;text-align:right;">AI 14gg</td>
+      <td style="padding:2px 4px;color:{'#22c55e' if pred_var>=0 else '#ef4444'};">{pred_var:+.1f}%</td>
     </tr>
   </table>
   <div style="margin-top:6px;text-align:center;"><img src="data:image/png;base64,{img_b64}" style="max-width:100%;height:auto;border-radius:4px;" alt="{s['ticker']}"/></div>
@@ -408,14 +434,16 @@ def genera_html_riepilogo(results, top_data):
   <thead><tr style="background:#1e293b;">
     <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:left;">Nome</th>
     <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:left;">Tkr</th>
-    <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:left;">Prezzo</th>
+    <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:left;">Acq</th>
     <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:center;">Segn</th>
     <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:center;">Scr</th>
+    <th style="padding:5px 6px;color:#ef4444;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:right;">SL</th>
+    <th style="padding:5px 6px;color:#22c55e;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:right;">Vendita</th>
+    <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:right;">Azioni (€)</th>
+    <th style="padding:5px 6px;color:#ef4444;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:right;">Rischio</th>
+    <th style="padding:5px 6px;color:#22c55e;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:right;">TP%</th>
     <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:right;">30gg</th>
     <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:center;">RSI</th>
-    <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:right;">Res</th>
-    <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:right;">SL</th>
-    <th style="padding:5px 6px;color:#64748b;font-weight:600;font-size:9px;letter-spacing:0.4px;text-align:right;">Size</th>
   </tr></thead>
   <tbody>{watch_rows}</tbody>
   </table>
