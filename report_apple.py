@@ -90,11 +90,11 @@ def main():
         date_str = str(idx.date()) if hasattr(idx, 'date') else str(idx)[:10]
         table_rows += f"""
         <tr>
-            <td style="padding: 12px; border-bottom: 1px solid #2a2e39;">{date_str}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #2a2e39; color: #d1d4dc;">{date_str}</td>
             <td style="padding: 12px; border-bottom: 1px solid #2a2e39; color: #26a69a;">${row['open']:.2f}</td>
             <td style="padding: 12px; border-bottom: 1px solid #2a2e39; color: #26a69a;">${row['high']:.2f}</td>
             <td style="padding: 12px; border-bottom: 1px solid #2a2e39; color: #ef5350;">${row['low']:.2f}</td>
-            <td style="padding: 12px; border-bottom: 1px solid #2a2e39; font-weight: bold;">${row['close']:.2f}</td>
+            <td style="padding: 12px; border-bottom: 1px solid #2a2e39; color: #ab47bc; font-weight: bold;">${row['close']:.2f}</td>
         </tr>
         """
 
