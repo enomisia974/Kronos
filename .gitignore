@@ -61,6 +61,7 @@ logs/
 
 # Environment
 .env
+*.txt
 .venv
 env/
 venv/
