@@ -227,7 +227,7 @@ async def potenza_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text("Valore non valido. Scegli 3, 6, 9 kW o digita un numero (1-20):")
         return POTENZA
     reply = ReplyKeyboardMarkup([["800", "1000", "1500"], ["2000", "2700", "3500"]], one_time_keyboard=True, resize_keyboard=True)
-    await update.message.reply_text("Consumo annuo stimato in kWh?", reply_markup=reply)
+    await update.message.reply_text("Consumo annuo stimato in kWh?\n(Scegli o digita un valore)", reply_markup=reply)
     return CONSUMO
 
 async def consumo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
