@@ -2,6 +2,7 @@
      REPORT COMPARATIVO OFFERTE LUCE — Giugno 2026
      CAP: 37030 | Consumo: 1000 kWh/anno | 3 kW | Domestico Residente | Monoraria
      Fonte dati: Portale Offerte ARERA / Open Data (agg. 09/06/2026)
+     PROFILO UTENTE: CON IMPIANTO FOTOVOLTAICO
 ================================================================================
 
 NOTA: Il Portale Offerte (ilportaleofferte.it) e' un sito con procedura guidata
@@ -128,6 +129,95 @@ CON PUN = 0.132 EUR/kWh: il variabile risparmia ~1.40 EUR/mese
 CON PUN = 0.170 EUR/kWh: il variabile costa ~4.00 EUR/mese in piu' del fisso
 
 --------------------------------------------------------------------------------
+ ================================================================================
+ ANALISI SPECIFICA PER UTENTE CON FOTOVOLTAICO
+================================================================================
+
+Con un impianto fotovoltaico, il tuo prelievo dalla rete e' inferiore al
+consumo totale perche' parte dell'energia e' autoconsumata. La quota fissa
+di commercializzazione (EUR/mese) incide proporzionalmente DI PIU' sulla
+bolletta rispetto a un utente senza PV.
+
+OFFERTE CONSIGLIATE PER CHI HA FOTOVOLTAICO
+(criterio: quota fissa BASSA + prezzo energia competitivo)
+
+--- MIGLIORI A PREZZO FISSO (bassa quota fissa) ---
+
+#1  ILLUMIA - Lunga Luce Easy ★★★ TOP PV
+    Prezzo energia:   0.10800 EUR/kWh (bloccato 36 mesi)
+    Quota fissa:      5.50 EUR/mese
+    Spesa stimata:    ~36.30 EUR/mese (~435.60 EUR/anno)
+    Vantaggio:        quota fissa piu' bassa in assoluto + prezzo bloccato 3 anni
+    Svantaggio:       potrebbe non essere disponibile per 3 kW (verificare)
+
+#2  ILLUMIA - Energia Lunghissima
+    Prezzo energia:   0.11900 EUR/kWh (bloccato 36 mesi)
+    Quota fissa:      7.00 EUR/mese
+    Spesa stimata:    ~38.90 EUR/mese (~466.80 EUR/anno)
+    Vantaggio:        prezzo bloccato 3 anni, marchio solido
+    Svantaggio:       vincolo 36 mesi
+
+#3  OCTOPUS ENERGY - Fissa 12M
+    Prezzo energia:   0.13750 EUR/kWh (bloccato 12 mesi)
+    Quota fissa:      6.00 EUR/mese
+    Spesa stimata:    ~39.50 EUR/mese (~474.00 EUR/anno)
+    Vantaggio:        quota fissa molto bassa, nessun vincolo
+    Svantaggio:       prezzo energia leggermente superiore
+
+#4  EDISON - Web Luce
+    Prezzo energia:   0.12200 EUR/kWh (bloccato 12 mesi)
+    Quota fissa:      7.50 EUR/mese
+    Sconto annuale:   -30.00 EUR
+    Spesa stimata:    ~38.10 EUR/mese (~457.20 EUR/anno)
+    Vantaggio:        fornitore top-rated, sconto incluso
+
+--- MIGLIORI A PREZZO VARIABILE (bassa quota fissa) ---
+
+#1  OCTOPUS ENERGY - Flex Luce ★★★ TOP PV Variabile
+    Prezzo energia:   PUN + 0.00880 EUR/kWh
+    Quota fissa:      6.00 EUR/mese
+    Spesa stimata:    ~39.80 EUR/mese (~477.60 EUR/anno)*
+    Vantaggio:        quota fissa minima del mercato, flessibile
+    Svantaggio:       esposto a rialzi PUN
+
+#2  SORGENIA - Next Energy Sunlight Luce
+    Prezzo energia:   PUN + 0.00800 EUR/kWh
+    Quota fissa:      6.70 EUR/mese
+    Sconto annuale:   -15.00 EUR
+    Spesa stimata:    ~40.50 EUR/mese (~486.00 EUR/anno)*
+    Vantaggio:        spread bassissimo, fornitore affidabile
+
+#3  SORGENIA - Next Energy Sunlight (solo luce)
+    Prezzo energia:   PUN + 0.00800 EUR/kWh
+    Quota fissa:      6.70 EUR/mese
+    Spesa stimata:    ~40.50 EUR/mese (~486.00 EUR/anno)*
+    Vantaggio:        100% green
+
+* Stima con PUN medio 0.13170 EUR/kWh (giugno 2026).
+  Con fotovoltaico, la spesa reale sara' inferiore perche' il prelievo netto
+  dalla rete e' ridotto dall'autoconsumo.
+
+IMPATTO QUOTA FISSA CON FOTOVOLTAICO (esempio pratico)
+
+Scenario: Consumo totale 2000 kWh/anno, impianto PV copre il 50%
+  Prelievo netto dalla rete: ~1000 kWh/anno
+
+            | Offerta A          | Offerta B
+            | Q.fissa 12 EUR/mese | Q.fissa 6 EUR/mese
+            | P.energia 0.11 EUR  | P.energia 0.14 EUR
+------------+--------------------+------------------------------
+Energia     | 1000x0.11=110 EUR   | 1000x0.14=140 EUR
+Q.fissa ann | 12x12=144 EUR       | 6x12=72 EUR
+Tot materia | 254 EUR             | 212 EUR
+------------+--------------------+------------------------------
+RISULTATO:  | Offerta B (q.fissa + prezzo + cari) =
+            | RISPARMIA 42 EUR/anno nonostante prezzo/kWh piu' alto!
+            | Questo perche' la quota fissa pesa MENO.
+
+CONCLUSIONE: Con il fotovoltaico, la quota fissa e' PIU' importante
+del prezzo al kWh. Scegli sempre offerte con quota fissa <= 7 EUR/mese.
+
+================================================================================
  RACCOMANDAZIONE STRATEGICA
 --------------------------------------------------------------------------------
 
