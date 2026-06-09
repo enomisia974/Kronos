@@ -100,7 +100,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def cap_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["cap"] = update.message.text.strip()
-    await update.message.reply_text("Consumo annuo stimato in kWh? (es. 1000, 2700):")
+    reply = ReplyKeyboardMarkup([["800", "1000", "1500"], ["2000", "2700", "3500"]], one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text("Consumo annuo stimato in kWh? (scegli o scrivi un valore)", reply_markup=reply)
     return CONSUMO
 
 async def consumo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
