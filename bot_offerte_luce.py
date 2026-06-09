@@ -182,18 +182,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def cap_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["cap"] = update.message.text.strip()
-    reply = ReplyKeyboardMarkup([["Si", "No"]], one_time_keyboard=True, resize_keyboard=True)
-    await update.message.reply_text("Sei residente nell'immobile?", reply_markup=reply)
-    return RESIDENTE
-
-async def residente_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["residente"] = update.message.text.strip().lower() == "si"
     reply = ReplyKeyboardMarkup([["Casa", "Altri usi"]], one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text("Uso dell'immobile?", reply_markup=reply)
     return USO
 
 async def uso_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["uso"] = update.message.text.strip()
+    reply = ReplyKeyboardMarkup([["Si", "No"]], one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text("Sei residente nell'immobile?", reply_markup=reply)
+    return RESIDENTE
+
+async def residente_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data["residente"] = update.message.text.strip().lower() == "si"
     reply = ReplyKeyboardMarkup([["3 kW", "6 kW", "9 kW"]], one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text("Potenza impegnata?", reply_markup=reply)
     return POTENZA
