@@ -414,7 +414,7 @@ def genera_html_riepilogo(results, top_data):
       <td style="padding:2px 4px;color:{'#22c55e' if pred_var>=0 else '#ef4444'};">{pred_var:+.1f}%</td>
     </tr>
   </table>
-  <div style="margin-top:6px;text-align:center;"><img src="data:image/png;base64,{img_b64}" style="max-width:100%;height:auto;border-radius:4px;" alt="{s['ticker']}"/></div>
+  <div style="margin-top:6px;text-align:center;">{"<img src='data:image/png;base64," + img_b64 + "' style='max-width:100%;height:auto;border-radius:4px;' alt='" + s['ticker'] + "'/>" if img_b64 else "<div style='padding:10px;color:#64748b;font-size:11px;border:1px dashed #334155;border-radius:4px;'>Grafico non disponibile</div>"}</div>
 </div>"""
 
     return f"""<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>FTSE MIB Top 10 — Kronos</title></head>
@@ -584,22 +584,26 @@ def main():
                 backtest.append({'date': str(d.date()) if hasattr(d,'date') else str(d)[:10],
                                 'predetto': p['close'].iloc[0], 'reale': df.iloc[cut]['close'], 'error_pct': err})
 
-            fig = go.Figure()
-            fig.add_trace(go.Candlestick(x=x_ts, open=x_df['open'], high=x_df['high'],
-                low=x_df['low'], close=x_df['close'], name="Storico",
-                increasing_line_color='#22c55e', decreasing_line_color='#ef4444'))
-            fig.add_trace(go.Candlestick(x=y_ts, open=pred['open'], high=pred['high'],
-                low=pred['low'], close=pred['close'], name="Previsione",
-                increasing_line_color='#3b82f6', decreasing_line_color='#8b5cf6'))
-            fig.update_layout(template='none', height=200, margin=dict(l=6,r=6,t=6,b=6),
-                paper_bgcolor='white', plot_bgcolor='white',
-                font=dict(family='Inter,sans-serif', size=8, color='#334155'),
-                hovermode='x unified', showlegend=False,
-                xaxis_rangeslider_visible=False)
-            fig.update_xaxes(gridcolor='#f1f5f9', zeroline=False, visible=False)
-            fig.update_yaxes(gridcolor='#f1f5f9', zeroline=False, title='', visible=False)
-            img_bytes = fig.to_image(format='png', width=600, height=200, scale=1)
-            img_b64 = base64.b64encode(img_bytes).decode('utf-8')
+            img_b64 = ""
+            try:
+                fig = go.Figure()
+                fig.add_trace(go.Candlestick(x=x_ts, open=x_df['open'], high=x_df['high'],
+                    low=x_df['low'], close=x_df['close'], name="Storico",
+                    increasing_line_color='#22c55e', decreasing_line_color='#ef4444'))
+                fig.add_trace(go.Candlestick(x=y_ts, open=pred['open'], high=pred['high'],
+                    low=pred['low'], close=pred['close'], name="Previsione",
+                    increasing_line_color='#3b82f6', decreasing_line_color='#8b5cf6'))
+                fig.update_layout(template='none', height=200, margin=dict(l=6,r=6,t=6,b=6),
+                    paper_bgcolor='white', plot_bgcolor='white',
+                    font=dict(family='Inter,sans-serif', size=8, color='#334155'),
+                    hovermode='x unified', showlegend=False,
+                    xaxis_rangeslider_visible=False)
+                fig.update_xaxes(gridcolor='#f1f5f9', zeroline=False, visible=False)
+                fig.update_yaxes(gridcolor='#f1f5f9', zeroline=False, title='', visible=False)
+                img_bytes = fig.to_image(format='png', width=600, height=200, scale=1)
+                img_b64 = base64.b64encode(img_bytes).decode('utf-8')
+            except:
+                print("  (grafico non disponibile)")
 
             top_data.append({'s': s, 'pred': pred, 'backtest': backtest, 'img_b64': img_b64})
             gc.collect()
