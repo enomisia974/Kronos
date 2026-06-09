@@ -38,59 +38,62 @@ def calcola_spesa(prezzo_kwh, q_fissa_mese, consumo, potenza, ha_pv=False):
     totale = materia + regolati + iva
     return round(totale / 12, 2), round(totale, 2)
 
+SEP = "\n" + "\u2500" * 40 + "\n"
+
 def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza):
     lines = []
-    lines.append(f"REPORT OFFERTE LUCE - {datetime.now().strftime('%d/%m/%Y')}")
-    lines.append(f"CAP: {cap} | Consumo: {consumo} kWh/anno | {potenza} kW | Domestico Residente")
-    lines.append(f"Prezzo: {tipo_prezzo} | Tariffa: {tipo_tariffa} | Fotovoltaico: {'Si' if ha_pv else 'No'}")
-    lines.append("")
+    lines.append(f"REPORT OFFERTE LUCE · {datetime.now().strftime('%d/%m/%Y')}")
+    lines.append(f"CAP {cap} · {consumo} kWh/anno · {potenza} kW · Domestico Residente")
+    lines.append(f"Preferenze: {tipo_prezzo} · {tipo_tariffa} · Fotovoltaico: {'Si' if ha_pv else 'No'}")
+    lines.append(SEP)
 
     if ha_pv:
-        lines.append("* CON FOTOVOLTAICO: la quota fissa e' piu' importante del prezzo/kWh *")
-        lines.append("  (il prelievo netto dalla rete e' ridotto dell'autoconsumo)")
-        lines.append("")
+        lines.append("\u26a1 CON FOTOVOLTAICO: quota fissa > prezzo/kWh")
+        lines.append("   (autoconsumo riduce il prelievo dalla rete)")
+        lines.append(SEP)
 
     if tipo_prezzo in ("Fisso", "Indifferente"):
-        lines.append("=== MIGLIORI OFFERTE A PREZZO FISSO ===")
+        lines.append("OFFERTE PREZZO FISSO")
         lines.append("")
         ordinate = sorted(OFFERTE_FISSO, key=lambda x: x["q_fissa"] if ha_pv else x["prezzo"])
         for i, o in enumerate(ordinate, 1):
             mese, anno = calcola_spesa(o["prezzo"], o["q_fissa"], consumo, potenza, ha_pv)
-            lines.append(f"#{i} {o['fornitore']} - {o['offerta']}")
-            lines.append(f"   Prezzo: {o['prezzo']:.3f} EUR/kWh ({o['durata']})")
-            lines.append(f"   Quota fissa: {o['q_fissa']:.2f} EUR/mese")
-            lines.append(f"   Spesa: ~{mese} EUR/mese (~{anno} EUR/anno)")
+            lines.append(f"#{i} {o['fornitore']} \u2013 {o['offerta']}")
+            lines.append(f"   Prezzo: {o['prezzo']:.3f}  Quota: {o['q_fissa']:.2f}\u20ac/mese  {o['durata']}")
+            lines.append(f"   Spesa ~{mese}\u20ac/mese (~{anno}\u20ac/anno)")
             lines.append(f"   {o['note']}")
             lines.append("")
 
     if tipo_prezzo in ("Variabile", "Indifferente"):
-        lines.append("=== MIGLIORI OFFERTE A PREZZO VARIABILE ===")
-        lines.append(f"   (PUN medio giugno 2026: {PUN_MEDIO:.5f} EUR/kWh)")
+        lines.append("OFFERTE PREZZO VARIABILE (PUN medio: {:.4f}\u20ac/kWh)".format(PUN_MEDIO))
         lines.append("")
         ordinate = sorted(OFFERTE_VARIABILE, key=lambda x: x["q_fissa"] if ha_pv else 0)
         for i, o in enumerate(ordinate, 1):
             s = o["prezzo"].split("+")[1].strip() if "+" in o["prezzo"] else "0"
             p_kwh = PUN_MEDIO + float(s)
             mese, anno = calcola_spesa(p_kwh, o["q_fissa"], consumo, potenza, ha_pv)
-            lines.append(f"#{i} {o['fornitore']} - {o['offerta']}")
-            lines.append(f"   Prezzo: {o['prezzo']} EUR/kWh")
-            lines.append(f"   Quota fissa: {o['q_fissa']:.2f} EUR/mese")
-            lines.append(f"   Spesa: ~{mese} EUR/mese (~{anno} EUR/anno)*")
+            lines.append(f"#{i} {o['fornitore']} \u2013 {o['offerta']}")
+            lines.append(f"   Indice: {o['prezzo']}  Quota: {o['q_fissa']:.2f}\u20ac/mese")
+            lines.append(f"   Spesa ~{mese}\u20ac/mese (~{anno}\u20ac/anno)*")
             lines.append(f"   {o['note']}")
             lines.append("")
-        lines.append("* Stima con PUN medio. La spesa varia mensilmente.")
+        lines.append("* Stima su PUN medio, la spesa varia mensilmente")
+        lines.append("")
 
-    lines.append("=== RACCOMANDAZIONE ===")
+    lines.append(SEP)
+    lines.append("RACCOMANDAZIONE")
+    lines.append("")
     if ha_pv:
         best = min(OFFERTE_FISSO + OFFERTE_VARIABILE, key=lambda x: x["q_fissa"])
-        lines.append(f"Consigliata: {best['fornitore']} - {best['offerta']}")
-        lines.append(f"Quota fissa: {best['q_fissa']:.2f} EUR/mese - la piu' bassa del mercato")
-        lines.append("Con PV conviene minimizzare la quota fissa, non il prezzo/kWh.")
+        lines.append(f"  {best['fornitore']} \u2013 {best['offerta']}")
+        lines.append(f"  Quota fissa: {best['q_fissa']:.2f}\u20ac/mese (la piu' bassa)")
+        lines.append("  Con PV minimizza la quota fissa, non il prezzo/kWh")
     else:
-        lines.append("Mercato in rialzo (PUN 0.132 EUR/kWh). Meglio un prezzo fisso.")
-        lines.append("Consigliata: EDISON Web Luce (0.122 EUR/kWh, 7.50 EUR/mese, -30 EUR sconto)")
+        lines.append("  Mercato in rialzo (PUN 0,132\u20ac/kWh). Meglio un fisso.")
+        lines.append("  EDISON Web Luce (0,122\u20ac/kWh, 7,50\u20ac/mese, \u221230\u20ac sconto)")
     lines.append("")
-    lines.append("Fonte: Portale Offerte ARERA / Open Data (agg. 09/06/2026)")
+    lines.append(SEP)
+    lines.append("Fonte: ilportaleofferte.it \u00b7 Open Data ARERA (09/06/2026)")
     return "\n".join(lines)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
