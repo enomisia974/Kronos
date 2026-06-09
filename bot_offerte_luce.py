@@ -79,15 +79,17 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, resid
         ordinate = sorted(fisso, key=lambda x: x["q_fissa"] if ha_pv else x["prezzo"])
         for i, o in enumerate(ordinate, 1):
             mese, anno = calcola_spesa(o["prezzo"], o["q_fissa"], consumo, potenza, ha_pv, residente, o["sconto"])
-            lines.append(f"#{i} {o['fornitore']} \u2013 {o['offerta']}")
+            qf_annua = round(o["q_fissa"] * 12, 2)
+            lines.append(f"#{i}")
+            lines.append(f"\u2022 Fornitore: {o['fornitore']} \u2013 {o['offerta']}")
             if o["green"]:
-                lines.append("   \u2606 VERDE")
-            lines.append(f"   Prezzo: {o['prezzo']:.3f}  Quota: {o['q_fissa']:.2f}\u20ac/mese  {o['durata']}")
+                lines.append("  \u2606 Energia 100% rinnovabile")
+            lines.append(f"\u2022 SPESA TOTALE STIMATA: {anno}\u20ac")
+            lines.append(f"\u2022 Impatto Mensile: {mese}\u20ac")
+            lines.append(f"\u2022 Quota Fissa Inclusa: {qf_annua}\u20ac")
             if o["sconto"]:
-                lines.append(f"   Spesa annua ipotetica 1\u00b0 anno: {anno}\u20ac ({mese}\u20ac/mese, \u2212{o['sconto']}\u20ac sconto)")
-            else:
-                lines.append(f"   Spesa annua ipotetica: {anno}\u20ac ({mese}\u20ac/mese)")
-            lines.append("   " + o["note"])
+                lines.append(f"\u2022 Sconto Applicato: {o['sconto']}\u20ac (1\u00b0 anno)")
+            lines.append(f"\u2022 Tariffa al kWh: {o['prezzo']:.4f}\u20ac/kWh ({o['durata']})")
             lines.append("")
 
     if tipo_prezzo in ("Variabile", "Indifferente") and variabile:
@@ -101,15 +103,17 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, resid
             s = o["prezzo"].split("+")[1].strip() if "+" in o["prezzo"] else "0"
             p_kwh = PUN_MEDIO + float(s)
             mese, anno = calcola_spesa(p_kwh, o["q_fissa"], consumo, potenza, ha_pv, residente, o["sconto"])
-            lines.append(f"#{i} {o['fornitore']} \u2013 {o['offerta']}")
+            qf_annua = round(o["q_fissa"] * 12, 2)
+            lines.append(f"#{i}")
+            lines.append(f"\u2022 Fornitore: {o['fornitore']} \u2013 {o['offerta']}")
             if o["green"]:
-                lines.append("   \u2606 VERDE")
-            lines.append(f"   Indice: {o['prezzo']}  Quota: {o['q_fissa']:.2f}\u20ac/mese")
+                lines.append("  \u2606 Energia 100% rinnovabile")
+            lines.append(f"\u2022 SPESA TOTALE STIMATA: {anno}\u20ac*")
+            lines.append(f"\u2022 Impatto Mensile: {mese}\u20ac")
+            lines.append(f"\u2022 Quota Fissa Inclusa: {qf_annua}\u20ac")
             if o["sconto"]:
-                lines.append(f"   Spesa annua ipotetica 1\u00b0 anno: {anno}\u20ac ({mese}\u20ac/mese, \u2212{o['sconto']}\u20ac sconto)*")
-            else:
-                lines.append(f"   Spesa annua ipotetica: {anno}\u20ac ({mese}\u20ac/mese)*")
-            lines.append("   " + o["note"])
+                lines.append(f"\u2022 Sconto Applicato: {o['sconto']}\u20ac (1\u00b0 anno)")
+            lines.append(f"\u2022 Tariffa al kWh: {p_kwh:.4f}\u20ac/kWh ({o['prezzo']})")
             lines.append("")
         lines.append("* Stima su PUN medio, la spesa varia mensilmente")
         lines.append("")
