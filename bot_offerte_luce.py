@@ -8,6 +8,10 @@ from telegram.ext import (
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 
+UTENTI_AUTORIZZATI = {
+    365726063,  # enomisia974
+}
+
 CAP, RESIDENTE, USO, POTENZA, CONSUMO, PREZZO, TARIFFA, RINNOVABILI, PV = range(9)
 
 OFFERTE_FISSO = [
@@ -177,8 +181,20 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, resid
     return "\n".join(lines)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    uid = update.effective_user.id
+    if uid not in UTENTI_AUTORIZZATI:
+        logging.warning(f"Accesso negato a user {uid} (@{update.effective_user.username})")
+        await update.message.reply_text("Accesso negato. Bot riservato a utenti autorizzati.")
+        return ConversationHandler.END
     await update.message.reply_text("Benvenuto! Ti guider\u00f2 nella scelta dell'offerta luce migliore.\n\nInserisci il tuo CAP (es. 00100):")
     return CAP
+
+async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    uid = update.effective_user.id
+    uname = update.effective_user.username or "nessuno"
+    await update.message.reply_text(f"Il tuo ID Telegram: {uid}\nUsername: @{uname}\n\nAggiungi questo numero a UTENTI_AUTORIZZATI nel file bot_offerte_luce.py per ottenere accesso.")
+
+
 
 async def cap_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["cap"] = update.message.text.strip()
@@ -279,6 +295,7 @@ def main():
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
+    app.add_handler(CommandHandler("myid", myid))
     app.add_handler(conv)
     print("Bot avviato! Premi Ctrl+C per fermarlo.")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
