@@ -540,7 +540,7 @@ def main():
             print(f"  {ticker}: Score {s['score']} {s['action']}")
             results.append(s)
 
-    results.sort(key=lambda x: x['score'], reverse=True)
+    results.sort(key=lambda x: (x['score'], x['dist_res_pct'], x['vol_ratio']), reverse=True)
 
     bux = sum(1 for r in results if r['action']=='BUY')
     rdy = sum(1 for r in results if r['action']=='READY')
