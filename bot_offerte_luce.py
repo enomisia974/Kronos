@@ -16,18 +16,23 @@ UTENTI_AUTORIZZATI = {
 CAP, RESIDENTE, USO, POTENZA, CONSUMO, PREZZO, TARIFFA, RINNOVABILI, PV = range(9)
 
 OFFERTE_FISSO = [
-    {"fornitore": "ILLUMIA", "offerta": "Lunga Luce Easy", "prezzo": 0.108, "q_fissa": 5.50, "durata": "36 mesi", "green": False, "sconto": 0, "note": "quota fissa piu' bassa in assoluto"},
-    {"fornitore": "ILLUMIA", "offerta": "Energia Lunghissima", "prezzo": 0.119, "q_fissa": 7.00, "durata": "36 mesi", "green": False, "sconto": 0, "note": "prezzo bloccato 3 anni"},
-    {"fornitore": "EDISON", "offerta": "Web Luce", "prezzo": 0.122, "q_fissa": 7.50, "durata": "12 mesi", "green": False, "sconto": 30, "note": "fornitore top"},
-    {"fornitore": "E.ON", "offerta": "LuceClick Verde", "prezzo": 0.129, "q_fissa": 9.00, "durata": "12 mesi", "green": True, "sconto": 0, "note": "energia 100% green"},
-    {"fornitore": "OCTOPUS ENERGY", "offerta": "Fissa 12M", "prezzo": 0.138, "q_fissa": 6.00, "durata": "12 mesi", "green": False, "sconto": 0, "note": "quota fissa molto bassa"},
+    {"fornitore": "IREN", "offerta": "36 Fisso Luce Summer Edition", "prezzo": 0.1012, "q_fissa": 12.25, "durata": "36 mesi", "green": False, "sconto": 12, "note": "prezzo kWh piu' basso, 36 mesi bloccato"},
+    {"fornitore": "ALPERIA", "offerta": "Direct Energy", "prezzo": 0.1094, "q_fissa": 9.08, "durata": "60 mesi", "green": False, "sconto": 0, "note": "prezzo bloccato 5 anni, q.fissa contenuta"},
+    {"fornitore": "PULSEE", "offerta": "Luce RELAX Fix 36", "prezzo": 0.1179, "q_fissa": 12.00, "durata": "36 mesi", "green": False, "sconto": 60, "note": "60\u20ac sconto primo anno, 36 mesi bloccato"},
+    {"fornitore": "ILLUMIA", "offerta": "Energia Lunghissima", "prezzo": 0.1190, "q_fissa": 13.00, "durata": "36 mesi", "green": False, "sconto": 75, "note": "75\u20ac sconto primo anno, fornitore affidabile"},
+    {"fornitore": "EDISON", "offerta": "Web Luce", "prezzo": 0.1240, "q_fissa": 7.50, "durata": "12 mesi", "green": False, "sconto": 30, "note": "quota fissa bassa, 30\u20ac sconto, fornitore top"},
+    {"fornitore": "LENE", "offerta": "Leggera Luce 24", "prezzo": 0.1260, "q_fissa": 7.00, "durata": "24 mesi", "green": False, "sconto": 0, "note": "q.fissa minima (7\u20ac/mese), bloccato 2 anni"},
+    {"fornitore": "E.ON", "offerta": "LuceClick Verde", "prezzo": 0.1290, "q_fissa": 9.00, "durata": "12 mesi", "green": True, "sconto": 0, "note": "energia 100% green certificata"},
+    {"fornitore": "OCTOPUS ENERGY", "offerta": "Fissa 12M", "prezzo": 0.1080, "q_fissa": 6.00, "durata": "12 mesi", "green": False, "sconto": 0, "note": "quota fissa piu' bassa del mercato (6\u20ac/mese)"},
 ]
 
 OFFERTE_VARIABILE = [
-    {"fornitore": "SORGENIA", "offerta": "Next Energy Sunlight", "prezzo": "PUN + 0.008", "q_fissa": 6.70, "green": True, "sconto": 0, "note": "spread bassissimo, 100% green"},
-    {"fornitore": "OCTOPUS ENERGY", "offerta": "Flex Luce", "prezzo": "PUN + 0.009", "q_fissa": 6.00, "green": False, "sconto": 0, "note": "quota fissa minima del mercato"},
-    {"fornitore": "HERA", "offerta": "Piu' Controllo Active Easy", "prezzo": "PUN + 0.009", "q_fissa": 10.00, "green": False, "sconto": 0, "note": "spread contenuto"},
-    {"fornitore": "EDISON", "offerta": "Dynamic Luce", "prezzo": "PUN + 0.014", "q_fissa": 8.25, "green": False, "sconto": 30, "note": "sconto primo anno"},
+    {"fornitore": "ACEA", "offerta": "Sprint Web Luce", "prezzo": "PUN + 0.004", "q_fissa": 8.00, "green": False, "sconto": 0, "note": "spread bassissimo (0.004), q.fissa contenuta"},
+    {"fornitore": "E.ON", "offerta": "Flex Click Luce", "prezzo": "PUN + 0.007", "q_fissa": 9.00, "green": True, "sconto": 0, "note": "spread 0.007, energia 100% green"},
+    {"fornitore": "SORGENIA", "offerta": "Next Energy Sunlight", "prezzo": "PUN + 0.010", "q_fissa": 6.70, "green": True, "sconto": 0, "note": "spread 0.010, 100% green, q.fissa bassa"},
+    {"fornitore": "OCTOPUS ENERGY", "offerta": "Flex Luce", "prezzo": "PUN + 0.009", "q_fissa": 6.00, "green": False, "sconto": 0, "note": "quota fissa minima del mercato (6\u20ac/mese)"},
+    {"fornitore": "EDISON", "offerta": "Dynamic Luce", "prezzo": "PUN + 0.014", "q_fissa": 8.25, "green": False, "sconto": 30, "note": "30\u20ac sconto primo anno, spread 0.014"},
+    {"fornitore": "HERA", "offerta": "Piu' Controllo Active Easy", "prezzo": "PUN + 0.009", "q_fissa": 10.00, "green": False, "sconto": 0, "note": "spread 0.009, fornitore rinomato"},
 ]
 
 PUN_MEDIO = 0.13170
@@ -40,7 +45,7 @@ CONTESTO_MERCATO = {
         "Tensioni geopolitiche in Medio Oriente e Iran che spingono i prezzi",
         "Previsioni di stabilizzazione solo su base cautelativa",
     ],
-    "outlook_fisso": "meglio bloccare il prezzo ora per proteggersi da eventuali shock energetici",
+    "outlook_fisso": "bloccare un prezzo ora protegge da futuri shock energetici",
     "outlook_variabile": "Se invece vuoi scommettere su un calo del PUN (scenario meno probabile oggi)",
 }
 
@@ -165,21 +170,25 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, resid
             lines.append("rialzo del PUN si tradurrebbe in decine di euro extra all'anno.")
         lines.append("")
         lines.append("Offerta consigliata:")
-        lines.append("  ILLUMIA \u2013 Energia Lunghissima (0.119 EUR/kWh, 7 EUR/mese, 36 mesi)")
-        lines.append("  per chi cerca stabilita' a lungo termine, oppure")
-        lines.append("  EDISON \u2013 Web Luce (0.122 EUR/kWh, 7.50 EUR/mese, 12 mesi, -30 EUR sconto)")
+        lines.append("  ALPERIA \u2013 Direct Energy (0.1094 EUR/kWh, 9.08 EUR/mese, 60 mesi)")
+        lines.append("  per chi cerca la massima stabilita' a lungo termine, oppure")
+        lines.append("  EDISON \u2013 Web Luce (0.124 EUR/kWh, 7.50 EUR/mese, 12 mesi, -30 EUR sconto)")
         lines.append("  se preferisci flessibilita' con un fornitore top-rated.")
+        lines.append("  ILLUMIA \u2013 Energia Lunghissima (0.119 EUR/kWh, 75\u20ac sconto, 36 mesi)")
+        lines.append("  e' un ottimo compromesso qualita'/prezzo.")
         lines.append("")
         lines.append(ctx["outlook_variabile"] + ",")
-        lines.append("Sorgenia Next Energy Sunlight offre lo spread piu' basso (PUN + 0.008 EUR/kWh)")
-        lines.append("con quota fissa contenuta (6.70 EUR/mese) e energia 100% green.")
+        lines.append("Acea Sprint Web Luce offre lo spread piu' basso (PUN + 0.004 EUR/kWh)")
+        lines.append("con quota fissa contenuta (8 EUR/mese), oppure Sorgenia Next Energy Sunlight")
+        lines.append("se preferisci energia 100% green (PUN + 0.010, 6.70 EUR/mese).")
     lines.append("")
     lines.append(SEP)
     lines.append("* Nota metodologica: Le stime includono tutte le componenti di spesa")
     lines.append("  (materia energia, trasporto, oneri di sistema, imposte, IVA)")
     lines.append("  secondo la metodologia ARERA. I prezzi sono aggiornati al 09/06/2026")
-    lines.append("  e potrebbero variare. Verifica sempre sul Portale Offerte prima")
-    lines.append("  di sottoscrivere: https://www.ilportaleofferte.it")
+    lines.append("  e potrebbero variare. Dati aggiornati al 09/06/2026 da Facile.it,")
+    lines.append("  SOStariffe, Selectra e luce-gas.it. Verifica sempre sul Portale Offerte")
+    lines.append("  prima di sottoscrivere: https://www.ilportaleofferte.it")
     return "\n".join(lines)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
