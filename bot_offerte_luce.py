@@ -26,6 +26,18 @@ OFFERTE_VARIABILE = [
 ]
 
 PUN_MEDIO = 0.13170
+PUN_ANNO_PREC = 0.116  # media 2025
+
+CONTESTO_MERCATO = {
+    "titolo": "CONTESTO DI MERCATO",
+    "trend": "PUN in crescita nel {anno} (media {pun_medio:.4f} EUR/kWh vs {pun_prec:.3f} nel {anno_prec})",
+    "fattori": [
+        "Tensioni geopolitiche in Medio Oriente e Iran che spingono i prezzi",
+        "Previsioni di stabilizzazione solo su base cautelativa",
+    ],
+    "outlook_fisso": "meglio bloccare il prezzo ora per proteggersi da eventuali shock energetici",
+    "outlook_variabile": "Se invece vuoi scommettere su un calo del PUN (scenario meno probabile oggi)",
+}
 
 def calcola_spesa(prezzo_kwh, q_fissa_mese, consumo, potenza, ha_pv=False, residente=True, sconto=0):
     prelievo = consumo * 0.5 if ha_pv else consumo
@@ -99,6 +111,16 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, resid
         lines.append("* Stima su PUN medio, la spesa varia mensilmente")
         lines.append("")
 
+    ctx = CONTESTO_MERCATO
+    anno = datetime.now().year
+    anno_prec = anno - 1
+    lines.append(SEP)
+    lines.append(ctx["titolo"])
+    lines.append("")
+    lines.append("- " + ctx["trend"].format(anno=anno, pun_medio=PUN_MEDIO, pun_prec=PUN_ANNO_PREC, anno_prec=anno_prec))
+    for f in ctx["fattori"]:
+        lines.append("- " + f)
+    lines.append("")
     lines.append(SEP)
     lines.append("RACCOMANDAZIONE STRATEGICA")
     lines.append("")
@@ -106,11 +128,6 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, resid
         tutte = fisso + variabile
         if tutte:
             best = min(tutte, key=lambda x: x["q_fissa"])
-            lines.append("Alla luce dei seguenti fattori:")
-            lines.append("- PUN in crescita nel 2026 (media {:.5f} EUR/kWh vs 0.116 nel 2025)".format(PUN_MEDIO))
-            lines.append("- Tensioni geopolitiche Iran e Medio Oriente che spingono i prezzi")
-            lines.append("- Previsioni di stabilizzazione solo su base cautelativa")
-            lines.append("")
             lines.append("SCELTA CONSIGLIATA: MINIMIZZARE QUOTA FISSA")
             lines.append("")
             lines.append("Motivazione: Con impianto fotovoltaico il prelievo dalla rete e' ridotto")
@@ -124,18 +141,14 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, resid
             lines.append("Con PV il risparmio non viene dal prezzo/kWh ma dalla quota fissa,")
             lines.append("perche' l'autoconsumo riduce i kWh prelevati dalla rete.")
     else:
-        lines.append("Alla luce dei seguenti fattori:")
-        lines.append("- PUN in crescita nel 2026 (media {:.5f} EUR/kWh vs 0.116 nel 2025)".format(PUN_MEDIO))
-        lines.append("- Tensioni geopolitiche Iran e Medio Oriente che spingono i prezzi")
-        lines.append("- Previsioni di stabilizzazione solo su base cautelativa")
-        lines.append("")
         lines.append("SCELTA CONSIGLIATA: PREZZO FISSO")
         lines.append("")
         lines.append("Motivazione: Con {0} kWh/anno la differenza tra fisso e variabile".format(consumo))
-        lines.append("e' contenuta (~1-2 EUR/mese oggi), ma il rischio di rialzo del PUN e' concreto.")
+        lines.append("e' contenuta (~1-2 EUR/mese oggi), ma il rischio di rialzo del PUN e' concreto,")
+        lines.append(ctx["outlook_fisso"] + ".")
         if consumo <= 1500:
             lines.append("Bloccare ora a 0.119-0.122 EUR/kWh garantisce certezza di spesa per 12-36 mesi,")
-            lines.append("proteggendoti da eventuali shock energetici.")
+            lines.append(ctx["outlook_fisso"] + ".")
         elif consumo <= 2700:
             lines.append("Bloccare ora intorno a 0.122 EUR/kWh garantisce un risparmio significativo")
             lines.append("a fronte di un rialzo anche contenuto del PUN (+0.01 EUR/kWh).")
@@ -149,7 +162,7 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, resid
         lines.append("  EDISON \u2013 Web Luce (0.122 EUR/kWh, 7.50 EUR/mese, 12 mesi, -30 EUR sconto)")
         lines.append("  se preferisci flessibilita' con un fornitore top-rated.")
         lines.append("")
-        lines.append("Se invece vuoi scommettere su un calo del PUN (scenario meno probabile oggi),")
+        lines.append(ctx["outlook_variabile"] + ",")
         lines.append("Sorgenia Next Energy Sunlight offre lo spread piu' basso (PUN + 0.008 EUR/kWh)")
         lines.append("con quota fissa contenuta (6.70 EUR/mese) e energia 100% green.")
     lines.append("")
