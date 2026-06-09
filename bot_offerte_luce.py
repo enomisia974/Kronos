@@ -84,7 +84,10 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, resid
         lines.append(SEP)
         lines.append("OFFERTE A PREZZO FISSO" + (" \u2192 solo rinnovabili" if solo_verde else ""))
         lines.append("")
-        ordinate = sorted(fisso, key=lambda x: x["q_fissa"] if ha_pv else x["prezzo"])
+        def costo_ord(o):
+            _, a = calcola_spesa(o["prezzo"], o["q_fissa"], consumo, potenza, ha_pv, residente, o["sconto"])
+            return a
+        ordinate = sorted(fisso, key=costo_ord)
         for i, o in enumerate(ordinate, 1):
             mese, anno = calcola_spesa(o["prezzo"], o["q_fissa"], consumo, potenza, ha_pv, residente, o["sconto"])
             qf_annua = round(o["q_fissa"] * 12, 2)
@@ -104,7 +107,11 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, resid
         lines.append(SEP)
         lines.append("OFFERTE A PREZZO VARIABILE (PUN medio: {:.4f}\u20ac/kWh)".format(PUN_MEDIO) + (" \u2192 solo rinnovabili" if solo_verde else ""))
         lines.append("")
-        ordinate = sorted(variabile, key=lambda x: x["q_fissa"] if ha_pv else 0)
+        def costo_ord_var(o):
+            s = o["prezzo"].split("+")[1].strip() if "+" in o["prezzo"] else "0"
+            _, a = calcola_spesa(PUN_MEDIO + float(s), o["q_fissa"], consumo, potenza, ha_pv, residente, o["sconto"])
+            return a
+        ordinate = sorted(variabile, key=costo_ord_var)
         for i, o in enumerate(ordinate, 1):
             s = o["prezzo"].split("+")[1].strip() if "+" in o["prezzo"] else "0"
             p_kwh = PUN_MEDIO + float(s)
