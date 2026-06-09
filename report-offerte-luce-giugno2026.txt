@@ -1,0 +1,162 @@
+﻿================================================================================
+     REPORT COMPARATIVO OFFERTE LUCE — Giugno 2026
+     CAP: 37030 | Consumo: 1000 kWh/anno | 3 kW | Domestico Residente | Monoraria
+     Fonte dati: Portale Offerte ARERA / Open Data (agg. 09/06/2026)
+================================================================================
+
+NOTA: Il Portale Offerte (ilportaleofferte.it) e' un sito con procedura guidata
+multi-step che richiede interazione JavaScript. I dati seguenti provengono dagli
+aggregatori autorizzati che attingono al medesimo database ufficiale ARERA e
+dagli Open Data XML/CSV del portale stesso.
+
+--------------------------------------------------------------------------------
+ CONTESTO DI MERCATO (Giugno 2026)
+--------------------------------------------------------------------------------
+- PUN medio mensile: 131.70 EUR/MWh (0.13170 EUR/kWh)
+- PUN giornaliero (09/06): 145.75 EUR/MWh
+- Trend 2026: in aumento vs 2025 (media 2025: 0.116 EUR/kWh)
+- Tensioni geopolitiche (Medio Oriente) stanno sostenendo i prezzi
+- Previsioni: possibile stabilizzazione, ma scenario incerto
+
+--------------------------------------------------------------------------------
+ MIGLIORI OFFERTE A PREZZO FISSO
+--------------------------------------------------------------------------------
+
+#1  ILLUMIA - Energia Lunghissima
+    Prezzo energia:   0.11900 EUR/kWh (bloccato 36 mesi)
+    Quota fissa:      7.00 EUR/mese
+    Spesa stimata:    ~31.50 EUR/mese  (~378.00 EUR/anno)
+    Energia verde:    Si
+    Vantaggio:        prezzo bloccato 3 anni, quota fissa bassa
+    Svantaggio:       vincolo 36 mesi (penale recesso)
+
+#2  EDISON - Web Luce
+    Prezzo energia:   0.12200 EUR/kWh (bloccato 12 mesi)
+    Quota fissa:      7.50 EUR/mese
+    Sconto annuale:   -30.00 EUR
+    Spesa stimata:    ~31.70 EUR/mese  (~380.40 EUR/anno)
+    Energia verde:    Si
+    Vantaggio:        prezzo competitivo, sconto incluso, fornitore affidabile
+    Svantaggio:       prezzo bloccato solo 12 mesi
+
+#3  E.ON - LuceClick Verde
+    Prezzo energia:   0.12890 EUR/kWh (bloccato 12 mesi)
+    Quota fissa:      9.00 EUR/mese
+    Spesa stimata:    ~33.90 EUR/mese  (~406.80 EUR/anno)
+    Energia verde:    Si
+    Vantaggio:        marchio noto, energia 100% green
+    Svantaggio:       prezzo leggermente superiore
+
+#4  METAMER - Due Fisso Luce
+    Prezzo energia:   0.12900 EUR/kWh (bloccato 24 mesi)
+    Quota fissa:      12.00 EUR/mese
+    Spesa stimata:    ~35.30 EUR/mese  (~423.60 EUR/anno)
+    Energia verde:    Si
+    Vantaggio:        prezzo bloccato 24 mesi
+    Svantaggio:       quota fissa piu' alta
+
+#5  HERA - Piu' Controllo Flat Easy Luce
+    Prezzo energia:   0.13290 EUR/kWh (bloccato 12 mesi)
+    Quota fissa:      10.00 EUR/mese
+    Spesa stimata:    ~35.60 EUR/mese  (~427.20 EUR/anno)
+    Energia verde:    Si
+    Vantaggio:        servizio clienti reattivo
+    Svantaggio:       costo complessivo piu' elevato
+
+--------------------------------------------------------------------------------
+ MIGLIORI OFFERTE A PREZZO VARIABILE (Indicizzato PUN)
+--------------------------------------------------------------------------------
+
+#1  SORGENIA - Next Energy Sunlight Luce
+    Prezzo energia:   PUN Index GME + 0.00800 EUR/kWh
+    Quota fissa:      6.70 EUR/mese
+    Sconto annuale:   -15.00 EUR
+    Spesa stimata:    ~30.10 EUR/mese  (~361.20 EUR/anno)*
+    Energia verde:    Si
+    Vantaggio:        spread bassissimo, quota fissa minima
+    Svantaggio:       esposto a rialzi del PUN
+
+#2  OCTOPUS ENERGY - Flex Luce
+    Prezzo energia:   PUN + 0.00880 EUR/kWh
+    Quota fissa:      6.00 EUR/mese
+    Spesa stimata:    ~30.30 EUR/mese  (~363.60 EUR/anno)*
+    Energia verde:    Si
+    Vantaggio:        quota fissa tra le piu' basse
+    Svantaggio:       fornitore relativamente nuovo in Italia
+
+#3  HERA - Piu' Controllo Active Easy Luce
+    Prezzo energia:   PUN + 0.00935 EUR/kWh
+    Quota fissa:      10.00 EUR/mese
+    Spesa stimata:    ~32.10 EUR/mese  (~385.20 EUR/anno)*
+    Energia verde:    Si
+    Vantaggio:        spread contenuto
+    Svantaggio:       quota fissa piu' alta
+
+#4  EDISON - Dynamic Luce
+    Prezzo energia:   PUN + 0.01400 EUR/kWh
+    Quota fissa:      8.25 EUR/mese
+    Sconto annuale:   -30.00 EUR
+    Spesa stimata:    ~32.80 EUR/mese  (~393.60 EUR/anno)*
+    Energia verde:    Si
+    Vantaggio:        fornitore consolidato, sconto incluso
+    Svantaggio:       spread piu' alto
+
+#5  A2A - Smart Casa
+    Prezzo energia:   PUN + spread variabile
+    Quota fissa:      ~8.00 EUR/mese
+    Spesa stimata:    ~33.00 EUR/mese  (~396.00 EUR/anno)*
+    Energia verde:    Si
+    Vantaggio:        flessibilita', attivazione gratuita
+    Svantaggio:       spread non predefinito
+
+* Stima calcolata con PUN medio 0.13170 EUR/kWh (giugno 2026).
+  La spesa effettiva variera' mensilmente in base all'andamento del PUN.
+
+--------------------------------------------------------------------------------
+ CONFRONTO FINALE: MIGLIORE FISSO vs MIGLIORE VARIABILE
+--------------------------------------------------------------------------------
+                  | ILLUMIA (Fisso)       | SORGENIA (Variabile)
+                  | 0.119 EUR/kWh x 36 m  | PUN + 0.008 EUR/kWh
+------------------+-----------------------+-------------------------------
+Spesa mensile     | ~31.50 EUR            | ~30.10 EUR (con PUN attuale)
+Spesa annua       | ~378.00 EUR           | ~361.20 EUR
+Differenza        | -                     | -16.80 EUR/anno (oggi)
+Rischio           | Nessuno (bloccato)    | Alto (se PUN sale)
+Certezza costo    | 100% per 36 mesi      | Variabile mese per mese
+
+CON PUN = 0.132 EUR/kWh: il variabile risparmia ~1.40 EUR/mese
+CON PUN = 0.170 EUR/kWh: il variabile costa ~4.00 EUR/mese in piu' del fisso
+
+--------------------------------------------------------------------------------
+ RACCOMANDAZIONE STRATEGICA
+--------------------------------------------------------------------------------
+
+Alla luce dei seguenti fattori:
+- PUN in crescita nel 2026 (media 0.132 EUR/kWh vs 0.116 EUR/kWh nel 2025)
+- Tensioni geopolitiche in Iran e Medio Oriente che spingono i prezzi
+- Previsioni di stabilizzazione solo su base cautelativa
+
+SCELTA CONSIGLIATA: PREZZO FISSO
+
+Motivazione: Con un consumo contenuto (1000 kWh/anno) la differenza tra
+fisso e variabile e' modesta (~1-2 EUR/mese oggi), ma il rischio di rialzo
+del PUN e' concreto. Bloccare ora a 0.119-0.122 EUR/kWh garantisce certezza
+di spesa per 12-36 mesi, proteggendoti da eventuali shock energetici.
+
+Offerta consigliata: ILLUMIA - Energia Lunghissima (0.119 EUR/kWh bloccato
+3 anni, 7 EUR/mese) se cerchi stabilita' a lungo termine, oppure EDISON -
+Web Luce (0.122 EUR/kWh, 7.50 EUR/mese) se preferisci flessibilita' con un
+fornitore top-rated (Selectra Score A, 4.7/5).
+
+Se invece vuoi scommettere su un calo del PUN (scenario meno probabile
+oggi), Sorgenia Next Energy Sunlight offre lo spread piu' basso (PUN +
+0.008 EUR/kWh) con la quota fissa minima (6.70 EUR/mese).
+
+================================================================================
+* Nota metodologica: Le stime sono calcolate includendo tutte le componenti
+  di spesa (materia energia, trasporto, oneri di sistema, imposte, IVA)
+  secondo la metodologia ARERA, approssimate per il profilo 1000 kWh/3 kW.
+  I prezzi e le disponibilita' delle offerte sono aggiornati al 09/06/2026
+  e potrebbero variare. Verifica sempre sul Portale Offerte prima di
+  sottoscrivere: https://www.ilportaleofferte.it
+================================================================================
