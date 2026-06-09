@@ -51,8 +51,7 @@ def calcola_spesa(prezzo_kwh, q_fissa_mese, consumo, potenza, ha_pv=False, resid
     totale = materia + regolati + iva
     return round(totale / 12, 2), round(totale, 2)
 
-SEP = "\n" + "\u2500" * 44 + "\n"
-SEP2 = "\n" + "\u2550" * 44 + "\n"
+SEP = "\n" + "\u2500" * 44
 
 def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, residente, uso, solo_verde):
     lines = []
@@ -71,10 +70,8 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, resid
     variabile = [o for o in OFFERTE_VARIABILE if not solo_verde or o["green"]]
 
     if tipo_prezzo in ("Fisso", "Indifferente") and fisso:
-        lines.append(SEP2)
-        lines.append("  OFFERTE A PREZZO FISSO")
-        if solo_verde:
-            lines.append("  \u2192 solo energia da rinnovabili")
+        lines.append(SEP)
+        lines.append("OFFERTE A PREZZO FISSO" + (" \u2192 solo rinnovabili" if solo_verde else ""))
         lines.append("")
         ordinate = sorted(fisso, key=lambda x: x["q_fissa"] if ha_pv else x["prezzo"])
         for i, o in enumerate(ordinate, 1):
@@ -93,10 +90,8 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, resid
             lines.append("")
 
     if tipo_prezzo in ("Variabile", "Indifferente") and variabile:
-        lines.append(SEP2)
-        lines.append("  OFFERTE A PREZZO VARIABILE (PUN medio: {:.4f}\u20ac/kWh)".format(PUN_MEDIO))
-        if solo_verde:
-            lines.append("  \u2192 solo energia da rinnovabili")
+        lines.append(SEP)
+        lines.append("OFFERTE A PREZZO VARIABILE (PUN medio: {:.4f}\u20ac/kWh)".format(PUN_MEDIO) + (" \u2192 solo rinnovabili" if solo_verde else ""))
         lines.append("")
         ordinate = sorted(variabile, key=lambda x: x["q_fissa"] if ha_pv else 0)
         for i, o in enumerate(ordinate, 1):
