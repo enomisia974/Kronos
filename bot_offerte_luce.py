@@ -8,7 +8,7 @@ from telegram.ext import (
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 
-CAP, CONSUMO, PREZZO, TARIFFA, PV = range(5)
+CAP, POTENZA, CONSUMO, PREZZO, TARIFFA, PV = range(6)
 
 OFFERTE_FISSO = [
     {"fornitore": "ILLUMIA", "offerta": "Lunga Luce Easy", "prezzo": 0.108, "q_fissa": 5.50, "durata": "36 mesi", "note": "quota fissa piu' bassa in assoluto"},
@@ -27,20 +27,21 @@ OFFERTE_VARIABILE = [
 
 PUN_MEDIO = 0.13170
 
-def calcola_spesa(prezzo_kwh, q_fissa_mese, consumo, ha_pv=False):
+def calcola_spesa(prezzo_kwh, q_fissa_mese, consumo, potenza, ha_pv=False):
     prelievo = consumo * 0.5 if ha_pv else consumo
     energia = prezzo_kwh * prelievo
     q_fissa_annua = q_fissa_mese * 12
-    regolati = 200 + (0.0227 * prelievo)
+    trasporto = 120 + (8.50 * potenza)
+    regolati = trasporto + (0.0227 * prelievo)
     materia = energia + q_fissa_annua
     iva = (materia * 0.10) + (regolati * 0.22)
     totale = materia + regolati + iva
     return round(totale / 12, 2), round(totale, 2)
 
-def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap):
+def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza):
     lines = []
     lines.append(f"REPORT OFFERTE LUCE - {datetime.now().strftime('%d/%m/%Y')}")
-    lines.append(f"CAP: {cap} | Consumo: {consumo} kWh/anno | 3 kW | Domestico Residente")
+    lines.append(f"CAP: {cap} | Consumo: {consumo} kWh/anno | {potenza} kW | Domestico Residente")
     lines.append(f"Prezzo: {tipo_prezzo} | Tariffa: {tipo_tariffa} | Fotovoltaico: {'Si' if ha_pv else 'No'}")
     lines.append("")
 
@@ -54,7 +55,7 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap):
         lines.append("")
         ordinate = sorted(OFFERTE_FISSO, key=lambda x: x["q_fissa"] if ha_pv else x["prezzo"])
         for i, o in enumerate(ordinate, 1):
-            mese, anno = calcola_spesa(o["prezzo"], o["q_fissa"], consumo, ha_pv)
+            mese, anno = calcola_spesa(o["prezzo"], o["q_fissa"], consumo, potenza, ha_pv)
             lines.append(f"#{i} {o['fornitore']} - {o['offerta']}")
             lines.append(f"   Prezzo: {o['prezzo']:.3f} EUR/kWh ({o['durata']})")
             lines.append(f"   Quota fissa: {o['q_fissa']:.2f} EUR/mese")
@@ -70,7 +71,7 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap):
         for i, o in enumerate(ordinate, 1):
             s = o["prezzo"].split("+")[1].strip() if "+" in o["prezzo"] else "0"
             p_kwh = PUN_MEDIO + float(s)
-            mese, anno = calcola_spesa(p_kwh, o["q_fissa"], consumo, ha_pv)
+            mese, anno = calcola_spesa(p_kwh, o["q_fissa"], consumo, potenza, ha_pv)
             lines.append(f"#{i} {o['fornitore']} - {o['offerta']}")
             lines.append(f"   Prezzo: {o['prezzo']} EUR/kWh")
             lines.append(f"   Quota fissa: {o['q_fissa']:.2f} EUR/mese")
@@ -100,8 +101,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def cap_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["cap"] = update.message.text.strip()
+    reply = ReplyKeyboardMarkup([["3 kW", "6 kW", "9 kW"]], one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text("Qual e' la potenza impegnata?", reply_markup=reply)
+    return POTENZA
+
+async def potenza_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    val = update.message.text.strip().lower().replace("kw", "").strip()
+    try:
+        context.user_data["potenza"] = int(val)
+    except ValueError:
+        await update.message.reply_text("Scegli tra 3, 6 o 9 kW:")
+        return POTENZA
     reply = ReplyKeyboardMarkup([["800", "1000", "1500"], ["2000", "2700", "3500"]], one_time_keyboard=True, resize_keyboard=True)
-    await update.message.reply_text("Consumo annuo stimato in kWh? (scegli o scrivi un valore)", reply_markup=reply)
+    await update.message.reply_text("Consumo annuo stimato in kWh?", reply_markup=reply)
     return CONSUMO
 
 async def consumo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -135,7 +147,8 @@ async def pv_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         tipo_prezzo=context.user_data["tipo_prezzo"],
         tipo_tariffa=context.user_data["tipo_tariffa"],
         ha_pv=ha_pv,
-        cap=context.user_data["cap"]
+        cap=context.user_data["cap"],
+        potenza=context.user_data["potenza"]
     )
     for chunk in [report[i:i+4096] for i in range(0, len(report), 4096)]:
         await update.message.reply_text(chunk)
@@ -153,6 +166,7 @@ def main():
         entry_points=[CommandHandler("start", start)],
         states={
             CAP: [MessageHandler(filters.TEXT & ~filters.COMMAND, cap_handler)],
+            POTENZA: [MessageHandler(filters.TEXT & ~filters.COMMAND, potenza_handler)],
             CONSUMO: [MessageHandler(filters.TEXT & ~filters.COMMAND, consumo_handler)],
             PREZZO: [MessageHandler(filters.TEXT & ~filters.COMMAND, prezzo_handler)],
             TARIFFA: [MessageHandler(filters.TEXT & ~filters.COMMAND, tariffa_handler)],
