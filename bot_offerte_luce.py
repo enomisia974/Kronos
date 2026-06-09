@@ -16,23 +16,29 @@ UTENTI_AUTORIZZATI = {
 CAP, RESIDENTE, USO, POTENZA, CONSUMO, PREZZO, TARIFFA, RINNOVABILI, PV = range(9)
 
 OFFERTE_FISSO = [
-    {"fornitore": "IREN", "offerta": "36 Fisso Luce Summer Edition", "prezzo": 0.1012, "q_fissa": 12.25, "durata": "36 mesi", "green": False, "sconto": 12, "note": "prezzo kWh piu' basso, 36 mesi bloccato"},
+    {"fornitore": "IREN", "offerta": "36 Fisso Luce Summer Edition", "prezzo": 0.1012, "q_fissa": 12.25, "durata": "36 mesi", "green": False, "sconto": 12, "note": "prezzo kWh piu' basso in assoluto"},
+    {"fornitore": "OCTOPUS ENERGY", "offerta": "Fissa 12M", "prezzo": 0.1080, "q_fissa": 6.00, "durata": "12 mesi", "green": False, "sconto": 0, "note": "q.fissa minima del mercato (6\u20ac/mese)"},
+    {"fornitore": "NeN", "offerta": "Special 36 Luce", "prezzo": 0.1090, "q_fissa": 9.00, "durata": "36 mesi", "green": False, "sconto": 0, "note": "prezzo bloccato 36 mesi, gruppo A2A"},
     {"fornitore": "ALPERIA", "offerta": "Direct Energy", "prezzo": 0.1094, "q_fissa": 9.08, "durata": "60 mesi", "green": False, "sconto": 0, "note": "prezzo bloccato 5 anni, q.fissa contenuta"},
     {"fornitore": "PULSEE", "offerta": "Luce RELAX Fix 36", "prezzo": 0.1179, "q_fissa": 12.00, "durata": "36 mesi", "green": False, "sconto": 60, "note": "60\u20ac sconto primo anno, 36 mesi bloccato"},
     {"fornitore": "ILLUMIA", "offerta": "Energia Lunghissima", "prezzo": 0.1190, "q_fissa": 13.00, "durata": "36 mesi", "green": False, "sconto": 75, "note": "75\u20ac sconto primo anno, fornitore affidabile"},
-    {"fornitore": "EDISON", "offerta": "Web Luce", "prezzo": 0.1240, "q_fissa": 7.50, "durata": "12 mesi", "green": False, "sconto": 30, "note": "quota fissa bassa, 30\u20ac sconto, fornitore top"},
+    {"fornitore": "EDISON", "offerta": "Web Luce", "prezzo": 0.1240, "q_fissa": 7.50, "durata": "12 mesi", "green": False, "sconto": 30, "note": "q.fissa bassa, 30\u20ac sconto, fornitore top"},
+    {"fornitore": "ACEA", "offerta": "Fix Luce", "prezzo": 0.1250, "q_fissa": 7.50, "durata": "12 mesi", "green": False, "sconto": 0, "note": "prezzo bloccato 12 mesi, q.fissa contenuta"},
     {"fornitore": "LENE", "offerta": "Leggera Luce 24", "prezzo": 0.1260, "q_fissa": 7.00, "durata": "24 mesi", "green": False, "sconto": 0, "note": "q.fissa minima (7\u20ac/mese), bloccato 2 anni"},
     {"fornitore": "E.ON", "offerta": "LuceClick Verde", "prezzo": 0.1290, "q_fissa": 9.00, "durata": "12 mesi", "green": True, "sconto": 0, "note": "energia 100% green certificata"},
-    {"fornitore": "OCTOPUS ENERGY", "offerta": "Fissa 12M", "prezzo": 0.1080, "q_fissa": 6.00, "durata": "12 mesi", "green": False, "sconto": 0, "note": "quota fissa piu' bassa del mercato (6\u20ac/mese)"},
 ]
 
 OFFERTE_VARIABILE = [
+    {"fornitore": "NeN", "offerta": "Surf Luce", "prezzo": "PUN + 0.000", "q_fissa": 11.00, "green": False, "sconto": 0, "note": "spread ZERO, q.fissa 11\u20ac/mese"},
+    {"fornitore": "EDISON", "offerta": "World Luce", "prezzo": "PUN + 0.000", "q_fissa": 10.00, "green": False, "sconto": 0, "note": "spread ZERO, q.fissa 10\u20ac/mese"},
+    {"fornitore": "E.ON", "offerta": "Luce Drive Smarty", "prezzo": "PUN + 0.002", "q_fissa": 10.00, "green": True, "sconto": 0, "note": "spread 0.002, energia green"},
     {"fornitore": "ACEA", "offerta": "Sprint Web Luce", "prezzo": "PUN + 0.004", "q_fissa": 8.00, "green": False, "sconto": 0, "note": "spread bassissimo (0.004), q.fissa contenuta"},
     {"fornitore": "E.ON", "offerta": "Flex Click Luce", "prezzo": "PUN + 0.007", "q_fissa": 9.00, "green": True, "sconto": 0, "note": "spread 0.007, energia 100% green"},
-    {"fornitore": "SORGENIA", "offerta": "Next Energy Sunlight", "prezzo": "PUN + 0.010", "q_fissa": 6.70, "green": True, "sconto": 0, "note": "spread 0.010, 100% green, q.fissa bassa"},
-    {"fornitore": "OCTOPUS ENERGY", "offerta": "Flex Luce", "prezzo": "PUN + 0.009", "q_fissa": 6.00, "green": False, "sconto": 0, "note": "quota fissa minima del mercato (6\u20ac/mese)"},
-    {"fornitore": "EDISON", "offerta": "Dynamic Luce", "prezzo": "PUN + 0.014", "q_fissa": 8.25, "green": False, "sconto": 30, "note": "30\u20ac sconto primo anno, spread 0.014"},
+    {"fornitore": "OCTOPUS ENERGY", "offerta": "Flex Luce", "prezzo": "PUN + 0.009", "q_fissa": 6.00, "green": False, "sconto": 0, "note": "q.fissa minima del mercato (6\u20ac/mese)"},
     {"fornitore": "HERA", "offerta": "Piu' Controllo Active Easy", "prezzo": "PUN + 0.009", "q_fissa": 10.00, "green": False, "sconto": 0, "note": "spread 0.009, fornitore rinomato"},
+    {"fornitore": "SORGENIA", "offerta": "Next Energy Sunlight", "prezzo": "PUN + 0.010", "q_fissa": 6.70, "green": True, "sconto": 0, "note": "spread 0.010, 100% green, q.fissa bassa"},
+    {"fornitore": "EDISON", "offerta": "Dynamic Luce", "prezzo": "PUN + 0.014", "q_fissa": 8.25, "green": False, "sconto": 30, "note": "30\u20ac sconto primo anno, spread 0.014"},
+    {"fornitore": "ENEL", "offerta": "Flex Box", "prezzo": "PUN + 0.041", "q_fissa": 5.00, "green": False, "sconto": 0, "note": "q.fissa minima (5\u20ac/mese), spread alto"},
 ]
 
 PUN_MEDIO = 0.13170
