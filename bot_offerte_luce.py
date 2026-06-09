@@ -10,6 +10,7 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 UTENTI_AUTORIZZATI = {
     365726063,  # enomisia974
+    6282141653, # rikk68
 }
 
 CAP, RESIDENTE, USO, POTENZA, CONSUMO, PREZZO, TARIFFA, RINNOVABILI, PV = range(9)
@@ -61,7 +62,8 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, resid
     lines = []
     lines.append("REPORT OFFERTE LUCE \u00b7 " + datetime.now().strftime("%d/%m/%Y"))
     res_label = "Residente" if residente else "Non residente"
-    lines.append(f"CAP {cap} \u00b7 {consumo} kWh/anno \u00b7 {potenza} kW \u00b7 {res_label} \u00b7 {uso}")
+    p_str = f"{potenza:.1f}".rstrip("0").rstrip(".")
+    lines.append(f"CAP {cap} \u00b7 {consumo} kWh/anno \u00b7 {p_str} kW \u00b7 {res_label} \u00b7 {uso}")
     lines.append(f"Prezzo: {tipo_prezzo} \u00b7 {tipo_tariffa} \u00b7 Verde: {'Si' if solo_verde else 'No'} \u00b7 PV: {'Si' if ha_pv else 'No'}")
     lines.append(SEP)
 
@@ -211,15 +213,18 @@ async def uso_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 async def residente_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["residente"] = update.message.text.strip().lower() == "si"
     reply = ReplyKeyboardMarkup([["3 kW", "6 kW", "9 kW"]], one_time_keyboard=True, resize_keyboard=True)
-    await update.message.reply_text("Potenza impegnata?", reply_markup=reply)
+    await update.message.reply_text("Potenza impegnata?\n(Scegli o digita un valore, es. 4.5)", reply_markup=reply)
     return POTENZA
 
 async def potenza_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     val = update.message.text.strip().lower().replace("kw", "").strip()
     try:
-        context.user_data["potenza"] = int(val)
+        p = float(val)
+        if p < 1 or p > 20:
+            raise ValueError
+        context.user_data["potenza"] = p
     except ValueError:
-        await update.message.reply_text("Scegli tra 3, 6 o 9 kW:")
+        await update.message.reply_text("Valore non valido. Scegli 3, 6, 9 kW o digita un numero (1-20):")
         return POTENZA
     reply = ReplyKeyboardMarkup([["800", "1000", "1500"], ["2000", "2700", "3500"]], one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text("Consumo annuo stimato in kWh?", reply_markup=reply)
