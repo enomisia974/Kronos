@@ -1,8 +1,8 @@
-name: Kronos Screening FTSE MIB (08:00 Italia)
+name: Kronos Screening FTSE MIB (07:30 Italia)
 
 on:
   schedule:
-    - cron: "30 4 * * *"
+    - cron: "30 5 * * *"
   workflow_dispatch:
 
 env:
