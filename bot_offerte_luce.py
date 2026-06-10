@@ -1,12 +1,20 @@
 import os, asyncio, logging
 from datetime import datetime
+from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import (
     Application, CommandHandler, MessageHandler,
     ConversationHandler, filters, ContextTypes
 )
 
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+    handlers=[
+        logging.FileHandler("D:\\DATI\\OPENCODE\\Offerta Luce\\bot_err.log"),
+        logging.StreamHandler()
+    ]
+)
 
 UTENTI_AUTORIZZATI = {
     365726063,  # enomisia974
@@ -29,16 +37,16 @@ OFFERTE_FISSO = [
 ]
 
 OFFERTE_VARIABILE = [
-    {"fornitore": "NeN", "offerta": "Surf Luce", "prezzo": "PUN + 0.000", "q_fissa": 11.00, "green": False, "sconto": 0, "note": "spread ZERO, q.fissa 11\u20ac/mese"},
-    {"fornitore": "EDISON", "offerta": "World Luce", "prezzo": "PUN + 0.000", "q_fissa": 10.00, "green": False, "sconto": 0, "note": "spread ZERO, q.fissa 10\u20ac/mese"},
-    {"fornitore": "E.ON", "offerta": "Luce Drive Smarty", "prezzo": "PUN + 0.002", "q_fissa": 10.00, "green": True, "sconto": 0, "note": "spread 0.002, energia green"},
-    {"fornitore": "ACEA", "offerta": "Sprint Web Luce", "prezzo": "PUN + 0.004", "q_fissa": 8.00, "green": False, "sconto": 0, "note": "spread bassissimo (0.004), q.fissa contenuta"},
-    {"fornitore": "E.ON", "offerta": "Flex Click Luce", "prezzo": "PUN + 0.007", "q_fissa": 9.00, "green": True, "sconto": 0, "note": "spread 0.007, energia 100% green"},
-    {"fornitore": "OCTOPUS ENERGY", "offerta": "Flex Luce", "prezzo": "PUN + 0.009", "q_fissa": 6.00, "green": False, "sconto": 0, "note": "q.fissa minima del mercato (6\u20ac/mese)"},
-    {"fornitore": "HERA", "offerta": "Piu' Controllo Active Easy", "prezzo": "PUN + 0.009", "q_fissa": 10.00, "green": False, "sconto": 0, "note": "spread 0.009, fornitore rinomato"},
-    {"fornitore": "SORGENIA", "offerta": "Next Energy Sunlight", "prezzo": "PUN + 0.010", "q_fissa": 6.70, "green": True, "sconto": 0, "note": "spread 0.010, 100% green, q.fissa bassa"},
-    {"fornitore": "EDISON", "offerta": "Dynamic Luce", "prezzo": "PUN + 0.014", "q_fissa": 8.25, "green": False, "sconto": 30, "note": "30\u20ac sconto primo anno, spread 0.014"},
-    {"fornitore": "ENEL", "offerta": "Flex Box", "prezzo": "PUN + 0.041", "q_fissa": 5.00, "green": False, "sconto": 0, "note": "q.fissa minima (5\u20ac/mese), spread alto"},
+    {"fornitore": "NeN", "offerta": "Surf Luce", "prezzo": "PUN + 0.000", "q_fissa": 11.00, "durata": "indicizzato", "green": False, "sconto": 0, "note": "spread ZERO, q.fissa 11\u20ac/mese"},
+    {"fornitore": "EDISON", "offerta": "World Luce", "prezzo": "PUN + 0.000", "q_fissa": 10.00, "durata": "indicizzato", "green": False, "sconto": 0, "note": "spread ZERO, q.fissa 10\u20ac/mese"},
+    {"fornitore": "E.ON", "offerta": "Luce Drive Smarty", "prezzo": "PUN + 0.002", "q_fissa": 10.00, "durata": "indicizzato", "green": True, "sconto": 0, "note": "spread 0.002, energia green"},
+    {"fornitore": "ACEA", "offerta": "Sprint Web Luce", "prezzo": "PUN + 0.004", "q_fissa": 8.00, "durata": "indicizzato", "green": False, "sconto": 0, "note": "spread bassissimo (0.004), q.fissa contenuta"},
+    {"fornitore": "E.ON", "offerta": "Flex Click Luce", "prezzo": "PUN + 0.007", "q_fissa": 9.00, "durata": "indicizzato", "green": True, "sconto": 0, "note": "spread 0.007, energia 100% green"},
+    {"fornitore": "OCTOPUS ENERGY", "offerta": "Flex Luce", "prezzo": "PUN + 0.009", "q_fissa": 6.00, "durata": "indicizzato", "green": False, "sconto": 0, "note": "q.fissa minima del mercato (6\u20ac/mese)"},
+    {"fornitore": "HERA", "offerta": "Piu' Controllo Active Easy", "prezzo": "PUN + 0.009", "q_fissa": 10.00, "durata": "indicizzato", "green": False, "sconto": 0, "note": "spread 0.009, fornitore rinomato"},
+    {"fornitore": "SORGENIA", "offerta": "Next Energy Sunlight", "prezzo": "PUN + 0.010", "q_fissa": 6.70, "durata": "indicizzato", "green": True, "sconto": 0, "note": "spread 0.010, 100% green, q.fissa bassa"},
+    {"fornitore": "EDISON", "offerta": "Dynamic Luce", "prezzo": "PUN + 0.014", "q_fissa": 8.25, "durata": "indicizzato", "green": False, "sconto": 30, "note": "30\u20ac sconto primo anno, spread 0.014"},
+    {"fornitore": "ENEL", "offerta": "Flex Box", "prezzo": "PUN + 0.041", "q_fissa": 5.00, "durata": "indicizzato", "green": False, "sconto": 0, "note": "q.fissa minima (5\u20ac/mese), spread alto"},
 ]
 
 PUN_MEDIO = 0.13170
@@ -67,7 +75,7 @@ def calcola_spesa(prezzo_kwh, q_fissa_mese, consumo, potenza, ha_pv=False, resid
     totale = materia + regolati + iva
     return round(totale / 12, 2), round(totale, 2)
 
-SEP = "\n" + "\u2500" * 44
+SEP = "--"
 
 def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, residente, uso, solo_verde):
     lines = []
@@ -87,8 +95,7 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, resid
     variabile = [o for o in OFFERTE_VARIABILE if not solo_verde or o["green"]]
 
     if tipo_prezzo in ("Fisso", "Indifferente") and fisso:
-        lines.append(SEP)
-        lines.append("OFFERTE A PREZZO FISSO" + (" \u2192 solo rinnovabili" if solo_verde else ""))
+        lines.append(SEP + " OFFERTE A PREZZO FISSO" + (" \u2192 solo rinnovabili" if solo_verde else "") + " " + SEP)
         lines.append("")
         def costo_ord(o):
             _, a = calcola_spesa(o["prezzo"], o["q_fissa"], consumo, potenza, ha_pv, residente, o["sconto"])
@@ -110,8 +117,7 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, resid
             lines.append("")
 
     if tipo_prezzo in ("Variabile", "Indifferente") and variabile:
-        lines.append(SEP)
-        lines.append("OFFERTE A PREZZO VARIABILE (PUN medio: {:.4f}\u20ac/kWh)".format(PUN_MEDIO) + (" \u2192 solo rinnovabili" if solo_verde else ""))
+        lines.append(SEP + " OFFERTE A PREZZO VARIABILE (PUN medio: {:.4f}\u20ac/kWh)".format(PUN_MEDIO) + (" \u2192 solo rinnovabili" if solo_verde else "") + " " + SEP)
         lines.append("")
         def costo_ord_var(o):
             s = o["prezzo"].split("+")[1].strip() if "+" in o["prezzo"] else "0"
@@ -132,7 +138,7 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, resid
             lines.append(f"\u2022 Quota Fissa Inclusa: {qf_annua}\u20ac")
             if o["sconto"]:
                 lines.append(f"\u2022 Sconto Applicato: {o['sconto']}\u20ac (1\u00b0 anno)")
-            lines.append(f"\u2022 Tariffa al kWh: {p_kwh:.4f}\u20ac/kWh ({o['prezzo']})")
+            lines.append(f"\u2022 Tariffa al kWh: {p_kwh:.4f}\u20ac/kWh ({o['prezzo']}, {o['durata']})")
             lines.append("")
         lines.append("* Stima su PUN medio, la spesa varia mensilmente")
         lines.append("")
@@ -140,16 +146,12 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, resid
     ctx = CONTESTO_MERCATO
     anno = datetime.now().year
     anno_prec = anno - 1
-    lines.append(SEP)
-    lines.append(ctx["titolo"])
-    lines.append("")
+    lines.append(SEP + " " + ctx["titolo"] + " " + SEP)
     lines.append("- " + ctx["trend"].format(anno=anno, pun_medio=PUN_MEDIO, pun_prec=PUN_ANNO_PREC, anno_prec=anno_prec))
     for f in ctx["fattori"]:
         lines.append("- " + f)
     lines.append("")
-    lines.append(SEP)
-    lines.append("RACCOMANDAZIONE STRATEGICA")
-    lines.append("")
+    lines.append(SEP + " RACCOMANDAZIONE STRATEGICA " + SEP)
     if ha_pv:
         tutte = fisso + variabile
         if tutte:
@@ -195,8 +197,8 @@ def genera_report(consumo, tipo_prezzo, tipo_tariffa, ha_pv, cap, potenza, resid
         lines.append("con quota fissa contenuta (8 EUR/mese), oppure Sorgenia Next Energy Sunlight")
         lines.append("se preferisci energia 100% green (PUN + 0.010, 6.70 EUR/mese).")
     lines.append("")
-    lines.append(SEP)
-    lines.append("* Nota metodologica: Le stime includono tutte le componenti di spesa")
+    lines.append(SEP + " * Nota metodologica " + SEP)
+    lines.append("Le stime includono tutte le componenti di spesa")
     lines.append("  (materia energia, trasporto, oneri di sistema, imposte, IVA)")
     lines.append("  secondo la metodologia ARERA. I prezzi sono aggiornati al 09/06/2026")
     lines.append("  e potrebbero variare. Dati aggiornati al 09/06/2026 da Facile.it,")
@@ -284,19 +286,28 @@ async def pv_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     ha_pv = update.message.text.strip().lower() == "si"
     context.user_data["pv"] = ha_pv
     await update.message.reply_text("Elaborazione in corso...", reply_markup=ReplyKeyboardRemove())
-    report = genera_report(
-        consumo=context.user_data["consumo"],
-        tipo_prezzo=context.user_data["tipo_prezzo"],
-        tipo_tariffa=context.user_data["tipo_tariffa"],
-        ha_pv=ha_pv,
-        cap=context.user_data["cap"],
-        potenza=context.user_data["potenza"],
-        residente=context.user_data["residente"],
-        uso=context.user_data["uso"],
-        solo_verde=context.user_data["solo_verde"]
-    )
-    for chunk in [report[i:i+4096] for i in range(0, len(report), 4096)]:
-        await update.message.reply_text(chunk)
+    try:
+        report = genera_report(
+            consumo=context.user_data["consumo"],
+            tipo_prezzo=context.user_data["tipo_prezzo"],
+            tipo_tariffa=context.user_data["tipo_tariffa"],
+            ha_pv=ha_pv,
+            cap=context.user_data["cap"],
+            potenza=context.user_data["potenza"],
+            residente=context.user_data["residente"],
+            uso=context.user_data["uso"],
+            solo_verde=context.user_data["solo_verde"]
+        )
+    except Exception as e:
+        logging.error(f"Errore genera_report: {e}")
+        await update.message.reply_text(f"Errore nella generazione del report: {e}")
+        return ConversationHandler.END
+    try:
+        for chunk in [report[i:i+4096] for i in range(0, len(report), 4096)]:
+            await update.message.reply_text(chunk)
+    except Exception as e:
+        logging.error(f"Errore invio report: {e}")
+        await update.message.reply_text(f"Errore nell'invio del report: {e}")
     await update.message.reply_text("Per un nuovo confronto, invia /start")
     return ConversationHandler.END
 
@@ -305,6 +316,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 def main():
+    load_dotenv()
     TOKEN = os.environ.get("BOT_TOKEN")
     app = Application.builder().token(TOKEN).build()
     conv = ConversationHandler(
